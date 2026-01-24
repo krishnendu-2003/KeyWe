@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDownUp,
   ChevronDown,
@@ -13,19 +13,24 @@ import {
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/Card";
 import { cn } from "@/lib/utils";
+import { useWallet } from "@/lib/walletContext";
+import { fetchAccountBalances, formatBalance, type AssetBalance } from "@/lib/balances";
+import { buildSwapTransaction, getQuote, submitSwapTransaction } from "@/lib/api";
+import { signTransaction } from "@stellar/freighter-api";
+import * as StellarSdk from "@stellar/stellar-sdk";
+import { toast } from "@/hooks/use-toast";
+import { WalletConnect } from "@/components/WalletConnect";
 
 interface Asset {
   code: string;
   name: string;
-  balance: string;
   icon: string;
 }
 
 const assets: Asset[] = [
-  { code: "XLM", name: "Stellar Lumens", balance: "1,234.56", icon: "⭐" },
-  { code: "USDC", name: "USD Coin", balance: "500.00", icon: "💵" },
-  { code: "EURC", name: "Euro Coin", balance: "250.00", icon: "💶" },
-  { code: "BTC", name: "Bitcoin", balance: "0.0045", icon: "₿" },
+  { code: "USDC", name: "USD Coin", icon: "💵" },
+  { code: "EURC", name: "Euro Coin", icon: "💶" },
+  { code: "XLM", name: "Stellar Lumens", icon: "⭐" },
 ];
 
 type SwapState =
@@ -38,6 +43,8 @@ type SwapState =
   | "error";
 
 export default function SwapPage() {
+  const { isConnected, publicKey, connect, disconnect, isFreighterInstalled, networkDetails } = useWallet();
+
   const [fromAsset, setFromAsset] = useState<Asset>(assets[0]);
   const [toAsset, setToAsset] = useState<Asset>(assets[1]);
   const [amount, setAmount] = useState("");
@@ -46,6 +53,11 @@ export default function SwapPage() {
   const [swapState, setSwapState] = useState<SwapState>("idle");
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
+  const [balances, setBalances] = useState<AssetBalance[]>([]);
+  const [loadingBalances, setLoadingBalances] = useState(false);
+  const [quote, setQuote] = useState<any>(null);
+  const [loadingQuote, setLoadingQuote] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSwapDirection = () => {
     const temp = fromAsset;
@@ -53,17 +65,158 @@ export default function SwapPage() {
     setToAsset(temp);
   };
 
-  const estimatedOutput = amount
-    ? (parseFloat(amount.replace(/,/g, "")) * 0.98).toFixed(2)
-    : "0.00";
+  const getBalance = useCallback(
+    (assetCode: string) => {
+      const b = balances.find((x) => x.code === assetCode || x.asset === assetCode);
+      return b ? formatBalance(b.balance) : "0.00";
+    },
+    [balances],
+  );
 
-  const handleSwap = () => {
+  const parsedAmount = useMemo(() => {
+    const raw = amount.replace(/,/g, "").trim();
+    const num = Number.parseFloat(raw);
+    if (!Number.isFinite(num) || num <= 0) return null;
+    return num;
+  }, [amount]);
+
+  const estimatedOutput = useMemo(() => {
+    if (loadingQuote) return "…";
+    if (!quote?.amountOut) return "0.00";
+    const out = Number.parseFloat(quote.amountOut) / 10_000_000;
+    if (!Number.isFinite(out)) return "0.00";
+    return out < 0.01 ? out.toFixed(7) : out.toFixed(2);
+  }, [quote, loadingQuote]);
+
+  // Fetch balances when connected.
+  useEffect(() => {
+    if (!isConnected || !publicKey) {
+      setBalances([]);
+      return;
+    }
+    setLoadingBalances(true);
+    setError(null);
+    fetchAccountBalances(publicKey, { horizonUrl: networkDetails?.networkUrl })
+      .then(setBalances)
+      .catch((e: any) => setError(e?.message || "Failed to fetch balances"))
+      .finally(() => setLoadingBalances(false));
+  }, [isConnected, publicKey, networkDetails?.networkUrl]);
+
+  const fetchQuote = useCallback(async () => {
+    if (!parsedAmount || fromAsset.code === toAsset.code) {
+      setQuote(null);
+      return;
+    }
+    setLoadingQuote(true);
+    setError(null);
+    try {
+      const res = await getQuote({
+        fromAsset: fromAsset.code,
+        toAsset: toAsset.code,
+        amount: Math.round(parsedAmount * 10_000_000).toString(),
+        slippage: Number.parseFloat(slippage) / 100,
+        userPublicKey: publicKey || undefined,
+      });
+      setQuote(res);
+      setSwapState("ready");
+    } catch (e: any) {
+      setQuote(null);
+      setSwapState("idle");
+      setError(e?.message || "Failed to get quote");
+    } finally {
+      setLoadingQuote(false);
+    }
+  }, [fromAsset.code, toAsset.code, parsedAmount, slippage, publicKey]);
+
+  // Debounce quote fetching.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void fetchQuote();
+    }, 500);
+    return () => clearTimeout(t);
+  }, [fetchQuote]);
+
+  // Clear quote when pair changes.
+  useEffect(() => {
+    setQuote(null);
+    setError(null);
+    if (amount) setSwapState("idle");
+  }, [fromAsset.code, toAsset.code]);
+
+  const handleSwap = async () => {
+    setError(null);
+
+    if (!isFreighterInstalled) {
+      setError("Freighter wallet extension is not installed.");
+      return;
+    }
+
+    if (!isConnected) {
+      setError("Please connect your wallet first.");
+      return;
+    }
+
+    if (!publicKey) {
+      setError("Wallet is connected but no public key was returned.");
+      return;
+    }
+
+    if (!parsedAmount) {
+      setError("Please enter a valid amount");
+      return;
+    }
+
+    if (!quote?.route || !quote?.amountIn || !quote?.amountOut) {
+      setError("No quote available yet. Enter an amount to fetch a route.");
+      return;
+    }
+
     setSwapState("loading");
-    // Simulated swap
-    setTimeout(() => {
+    try {
+      const buildRes = await buildSwapTransaction({
+        route: quote.route,
+        userPublicKey: publicKey,
+        amountIn: quote.amountIn,
+        amountOut: quote.amountOut,
+        fromAsset: fromAsset.code,
+        toAsset: toAsset.code,
+        slippage: Number.parseFloat(slippage) / 100,
+      });
+
+      const txXdr = buildRes?.transactionXdr;
+      if (!txXdr) throw new Error("Failed to build transaction XDR");
+
+      const networkPassphrase =
+        buildRes?.networkPassphrase || StellarSdk.Networks.TESTNET;
+
+      const signedXdr = await signTransaction(txXdr, { networkPassphrase });
+      if (!signedXdr) throw new Error("Transaction signing was cancelled");
+
+      const submitRes = await submitSwapTransaction(signedXdr, networkPassphrase);
+
       setSwapState("success");
-      setTimeout(() => setSwapState("idle"), 3000);
-    }, 2000);
+      toast({
+        title: "Swap executed",
+        description: `Tx: ${submitRes?.transactionHash || "submitted"}`,
+      });
+
+      // Refresh balances after swap.
+      if (publicKey) {
+        setTimeout(() => {
+          fetchAccountBalances(publicKey, { horizonUrl: networkDetails?.networkUrl })
+            .then(setBalances)
+            .catch(() => {});
+        }, 2000);
+      }
+
+      // Clear input/quote.
+      setAmount("");
+      setQuote(null);
+      setTimeout(() => setSwapState("idle"), 2500);
+    } catch (e: any) {
+      setSwapState("error");
+      setError(e?.message || "Swap failed");
+    }
   };
 
   const getButtonContent = () => {
@@ -89,17 +242,37 @@ export default function SwapPage() {
       case "error":
         return "Swap Failed - Retry";
       default:
+        if (!isConnected) return "Connect Freighter";
         return amount ? "Swap" : "Enter Amount";
     }
   };
+
+  const canSwap =
+    isConnected &&
+    !!parsedAmount &&
+    !!quote?.route?.length &&
+    swapState !== "loading" &&
+    swapState !== "success" &&
+    !loadingQuote;
 
   return (
     <main className="w-full pb-16 min-h-screen">
       <SectionWrapper>
         <div className="max-w-md mx-auto">
+          <WalletConnect className="mb-4" />
+
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold">Swap</h1>
+            <div>
+              <h1 className="text-2xl font-bold">Swap</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isConnected && publicKey
+                  ? `Connected: ${publicKey.slice(0, 8)}…${publicKey.slice(-8)}`
+                  : isFreighterInstalled
+                    ? "Connect Freighter to start swapping"
+                    : "Install Freighter to connect"}
+              </p>
+            </div>
             <button
               onClick={() => setShowSettings(!showSettings)}
               className={cn(
@@ -110,6 +283,16 @@ export default function SwapPage() {
               <Settings className="w-5 h-5" />
             </button>
           </div>
+
+          {error && (
+            <div className="mb-4 p-4 rounded-xl border border-border bg-card flex items-start gap-3 animate-fade-in">
+              <AlertCircle className="w-5 h-5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="font-medium">Something went wrong</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+            </div>
+          )}
 
           {/* Settings Panel */}
           {showSettings && (
@@ -190,7 +373,9 @@ export default function SwapPage() {
                               <div className="text-left">
                                 <p className="font-medium">{asset.code}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {asset.balance}
+                                  {loadingBalances
+                                    ? "Loading…"
+                                    : `${getBalance(asset.code)} ${asset.code}`}
                                 </p>
                               </div>
                             </button>
@@ -201,11 +386,12 @@ export default function SwapPage() {
                 </div>
                 <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
                   <span>
-                    Balance: {fromAsset.balance} {fromAsset.code}
+                    Balance:{" "}
+                    {loadingBalances ? "Loading…" : `${getBalance(fromAsset.code)} ${fromAsset.code}`}
                   </span>
                   <button
                     onClick={() =>
-                      setAmount(fromAsset.balance.replace(/,/g, ""))
+                      setAmount(getBalance(fromAsset.code))
                     }
                     className="font-medium hover:text-foreground transition-colors"
                   >
@@ -235,7 +421,12 @@ export default function SwapPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="flex-1 text-3xl font-semibold text-muted-foreground">
+                  <span
+                    className={cn(
+                      "flex-1 text-3xl font-semibold",
+                      loadingQuote ? "text-muted-foreground" : "",
+                    )}
+                  >
                     {estimatedOutput}
                   </span>
                   <div className="relative">
@@ -265,7 +456,9 @@ export default function SwapPage() {
                               <div className="text-left">
                                 <p className="font-medium">{asset.code}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {asset.balance}
+                                  {loadingBalances
+                                    ? "Loading…"
+                                    : `${getBalance(asset.code)} ${asset.code}`}
                                 </p>
                               </div>
                             </button>
@@ -285,13 +478,25 @@ export default function SwapPage() {
                       Rate
                     </span>
                     <span>
-                      1 {fromAsset.code} = 0.98 {toAsset.code}
+                      {quote?.amountIn && quote?.amountOut
+                        ? (() => {
+                            const inAmt = Number.parseFloat(quote.amountIn) / 10_000_000;
+                            const outAmt = Number.parseFloat(quote.amountOut) / 10_000_000;
+                            if (!Number.isFinite(inAmt) || !Number.isFinite(outAmt) || inAmt === 0) {
+                              return `—`;
+                            }
+                            const rate = outAmt / inAmt;
+                            return `1 ${fromAsset.code} = ${rate.toFixed(6)} ${toAsset.code}`;
+                          })()
+                        : "—"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Route</span>
                     <span>
-                      {fromAsset.code} → {toAsset.code}
+                      {quote?.route?.length
+                        ? quote.route.map((hop: any) => hop?.fromAsset).concat([quote.route[quote.route.length - 1]?.toAsset]).filter(Boolean).join(" → ")
+                        : `${fromAsset.code} → ${toAsset.code}`}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -302,6 +507,12 @@ export default function SwapPage() {
                     <span className="text-muted-foreground">Slippage</span>
                     <span>{slippage}%</span>
                   </div>
+                  {typeof quote?.priceImpact === "number" && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Price Impact</span>
+                      <span>{quote.priceImpact.toFixed(2)}%</span>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -310,11 +521,11 @@ export default function SwapPage() {
               <button
                 onClick={handleSwap}
                 disabled={
-                  !amount || swapState === "loading" || swapState === "success"
+                  !canSwap
                 }
                 className={cn(
                   "w-full py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all",
-                  amount && swapState !== "loading" && swapState !== "success"
+                  canSwap
                     ? "bg-foreground text-background hover:opacity-90"
                     : "bg-secondary text-muted-foreground cursor-not-allowed",
                   swapState === "success" && "bg-foreground text-background",
@@ -324,6 +535,8 @@ export default function SwapPage() {
               >
                 {getButtonContent()}
               </button>
+
+              {/* Disconnect handled by WalletConnect above */}
             </CardFooter>
           </Card>
 
