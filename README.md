@@ -313,5 +313,3 @@ event SwapExecuted {
 * RWA-first design
 * AI + Privacy ready
 * Institutional-grade
-
----
