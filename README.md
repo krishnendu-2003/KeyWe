@@ -1,4 +1,4 @@
-# Stellar Swap Aggregator (Jupiter-style) – System Architecture & Soroban Contract Flow
+# Stellar Swap Aggregator – System Architecture & Soroban Contract Flow
 
 ---
 
@@ -80,8 +80,6 @@
 ---
 
 ### 2.2 Aggregator API (Off-chain Intelligence Layer)
-
-This is the "Jupiter Brain".
 
 **Core Modules**
 
@@ -317,5 +315,3 @@ event SwapExecuted {
 * Institutional-grade
 
 ---
-
-🚀 This is Jupiter-level — but built for the **real economy**.
