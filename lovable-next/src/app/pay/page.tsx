@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { malinton } from "@/app/fonts";
 
 type Tab = "generate" | "scan";
 type ScanState = "idle" | "scanning" | "detected" | "confirming" | "success";
@@ -90,7 +91,7 @@ export default function PayPage() {
         <div className="max-w-md mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold mb-2">QR Payments</h1>
+                <h1 className={cn("text-2xl font-bold mb-2", malinton.className)}>QR Payments</h1>
             <p className="text-muted-foreground">
               Generate or scan to pay instantly
             </p>

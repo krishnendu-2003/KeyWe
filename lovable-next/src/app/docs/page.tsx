@@ -14,6 +14,7 @@ import {
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
 import { cn } from "@/lib/utils";
+import { malinton } from "@/app/fonts";
 
 const sections = [
   {
@@ -152,7 +153,7 @@ export default function DocsPage() {
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-3xl font-bold mb-4">Documentation</h1>
+            <h1 className={cn("text-3xl font-bold mb-4", malinton.className)}>Documentation</h1>
             <p className="text-muted-foreground max-w-md mx-auto">
               Everything you need to know about KeyWe Pay
             </p>
@@ -186,7 +187,7 @@ export default function DocsPage() {
                     )}
                   >
                     <section.icon className="w-5 h-5" />
-                    <span className="font-medium text-sm">{section.title}</span>
+                    <span className={cn("font-medium text-sm", malinton.className)}>{section.title}</span>
                     <ChevronRight
                       className={cn(
                         "rotate-0 w-4 h-4 ml-auto transition-transform",
@@ -207,7 +208,7 @@ export default function DocsPage() {
                       <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
                         <currentSection.icon className="w-6 h-6" />
                       </div>
-                      <h2 className="text-2xl font-bold">
+                      <h2 className={cn("text-2xl font-bold", malinton.className)}>
                         {currentSection.title}
                       </h2>
                     </div>

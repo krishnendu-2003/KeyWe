@@ -27,6 +27,7 @@ import {
 import { signTransaction } from "@stellar/freighter-api";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { toast } from "@/hooks/use-toast";
+import { malinton } from "@/app/fonts";
 
 interface Asset {
   code: string;
@@ -310,7 +311,7 @@ export default function SwapPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold">Swap</h1>
+              <h1 className={cn("text-2xl font-bold", malinton.className)}>Swap</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 {isConnected && publicKey
                   ? `Connected: ${publicKey.slice(0, 8)}…${publicKey.slice(-8)}`

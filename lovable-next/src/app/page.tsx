@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
+import { cn } from "@/lib/utils";
+import { malinton } from "@/app/fonts";
 
 const features = [
   {
@@ -81,7 +83,7 @@ export default function LandingPage() {
             <span>Built on Stellar Network</span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-6">
+          <h1 className={cn("text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-6", malinton.className)}>
             Swap & Pay on Stellar
             <br />
             <span className="text-muted-foreground">as simple as UPI</span>
@@ -94,7 +96,7 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/swap" className="btn-fintech-primary w-full sm:w-auto">
-              Start Swapping
+              <span className={malinton.className}>Start Swapping</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
@@ -111,7 +113,7 @@ export default function LandingPage() {
       {/* Features Section */}
       <SectionWrapper id="features" className="py-24">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Everything you need</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>Everything you need</h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
             A complete toolkit for Stellar payments and swaps.
           </p>
@@ -132,7 +134,7 @@ export default function LandingPage() {
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-6">
                   <feature.icon className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+                <h3 className={cn("text-xl font-semibold mb-3", malinton.className)}>{feature.title}</h3>
                 <p className="text-muted-foreground">{feature.description}</p>
               </CardContent>
             </Card>
@@ -143,7 +145,7 @@ export default function LandingPage() {
       {/* How It Works */}
       <SectionWrapper className="py-24 border-y border-border">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">How it works</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>How it works</h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
             Get started in three simple steps.
           </p>
@@ -161,7 +163,7 @@ export default function LandingPage() {
               <div className="text-6xl font-bold text-muted-foreground/20 mb-4">
                 {step.step}
               </div>
-              <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
+              <h3 className={cn("text-xl font-semibold mb-3", malinton.className)}>{step.title}</h3>
               <p className="text-muted-foreground">{step.description}</p>
             </div>
           ))}
@@ -171,7 +173,7 @@ export default function LandingPage() {
       {/* Trust & Security */}
       <SectionWrapper className="py-24">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Built for trust</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>Built for trust</h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
             Security and transparency at every step.
           </p>
@@ -191,7 +193,7 @@ export default function LandingPage() {
                 <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-6">
                   <point.icon className="w-7 h-7" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3">{point.title}</h3>
+                <h3 className={cn("text-xl font-semibold mb-3", malinton.className)}>{point.title}</h3>
                 <p className="text-muted-foreground">{point.description}</p>
               </CardContent>
             </Card>
@@ -202,7 +204,7 @@ export default function LandingPage() {
       {/* CTA Section */}
       <SectionWrapper className="py-24">
         <Card variant="glass" className="p-12 text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to get started?</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>Ready to get started?</h2>
           <p className="text-muted-foreground mb-8 max-w-md mx-auto">
             Connect your wallet and experience the future of Stellar payments.
           </p>

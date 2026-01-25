@@ -12,6 +12,7 @@ import {
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
 import { cn } from "@/lib/utils";
+import { malinton } from "@/app/fonts";
 import { useWallet } from "@/lib/walletContext";
 import { fetchAccountBalances, formatBalance } from "@/lib/balances";
 import { explorerNetworkFromHorizonUrl } from "@/lib/history";
@@ -99,7 +100,7 @@ export default function WalletPage() {
         <div className="max-w-md mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold mb-2">Wallet</h1>
+            <h1 className={cn("text-2xl font-bold mb-2", malinton.className)}>Wallet</h1>
             <p className="text-muted-foreground">
               Connect your Freighter wallet
             </p>
