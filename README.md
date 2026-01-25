@@ -65,4 +65,4 @@ This starts:
 
 
 ## Screenshots
-<img src="docs/images//pic1.png" alt="Swap page" width="800" />>
+<img src="docs/images//pic1.png" alt="Swap page" width="80" />>
