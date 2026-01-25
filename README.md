@@ -43,16 +43,6 @@ KeyWe/
 └── lovable-next/     # Frontend
 ```
 
-## Screenshots
-
-_Add screenshots/gifs here._
-
-- `docs/screenshots/home.png`
-- `docs/screenshots/swap.png`
-- `docs/screenshots/quote.png`
-- `docs/screenshots/history.png`
-
-
 Quick run:
 
 ```bash
@@ -72,3 +62,7 @@ This starts:
 - **Caching & performance** improvements (orderbook snapshots, quote memoization).
 - **Safety hardening**: slippage guards, better validation, failure retries, audit readiness.
 - **Better UX**: richer route visualizations, execution tracking, improved history & analytics.
+
+
+## Screenshots
+<img src="docs/images//pic1.png" alt="Swap page" width="800" />>
