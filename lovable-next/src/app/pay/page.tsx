@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/Card";
@@ -19,26 +19,88 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { malinton } from "@/app/fonts";
+import { useWallet } from "@/lib/walletContext";
+import { signTransaction } from "@stellar/freighter-api";
+import * as StellarSdk from "@stellar/stellar-sdk";
 
 type Tab = "generate" | "scan";
 type ScanState = "idle" | "scanning" | "detected" | "confirming" | "success";
 
 export default function PayPage() {
+  const { isConnected, publicKey, networkDetails } = useWallet();
   const [activeTab, setActiveTab] = useState<Tab>("generate");
-  const [walletAddress] = useState("GBZX...4GYE");
-  const [fullAddress] = useState(
-    "GBZX4QDZKGWPK4KQSXCF6QR2JNQKRHM3VVGVPKMQ5ZSQJWKC4GYE",
-  );
+  const fullAddress = publicKey || "";
+  const walletAddress = publicKey ? `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}` : "—";
   const [memo, setMemo] = useState("");
   const [copied, setCopied] = useState(false);
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [detectedAddress, setDetectedAddress] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [flashOn, setFlashOn] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentTxHash, setPaymentTxHash] = useState<string | null>(null);
 
-  const qrValue = memo ? `${fullAddress}?memo=${memo}` : fullAddress;
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanLoopActiveRef = useRef(false);
+
+  const qrValue = fullAddress ? (memo ? `${fullAddress}?memo=${memo}` : fullAddress) : "";
+
+  const canUseBarcodeDetector = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return "BarcodeDetector" in window;
+  }, []);
+
+  const parseQrPayload = (raw: string): { address: string; memo?: string } | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    // 1) Plain Stellar address
+    if (/^G[A-Z2-7]{55}$/i.test(trimmed)) {
+      return { address: trimmed };
+    }
+
+    // 2) "G...?...": address + optional query (our generated QR is address?memo=...)
+    const maybeAddr = trimmed.split("?")[0];
+    if (/^G[A-Z2-7]{55}$/i.test(maybeAddr)) {
+      const query = trimmed.includes("?") ? trimmed.slice(trimmed.indexOf("?") + 1) : "";
+      const params = new URLSearchParams(query);
+      const memoVal = params.get("memo") || undefined;
+      return { address: maybeAddr, memo: memoVal };
+    }
+
+    // 3) web+stellar: or URL formats
+    // e.g. web+stellar:pay?destination=G...&memo=...
+    try {
+      const url = new URL(trimmed);
+      const destination = url.searchParams.get("destination") || url.searchParams.get("account_id");
+      if (destination && /^G[A-Z2-7]{55}$/i.test(destination)) {
+        const memoVal = url.searchParams.get("memo") || undefined;
+        return { address: destination, memo: memoVal };
+      }
+    } catch {
+      // ignore
+    }
+
+    // Handle web+stellar:pay?... without URL base
+    if (trimmed.startsWith("web+stellar:")) {
+      const after = trimmed.replace(/^web\+stellar:/, "");
+      const qIndex = after.indexOf("?");
+      const query = qIndex >= 0 ? after.slice(qIndex + 1) : "";
+      const params = new URLSearchParams(query);
+      const destination = params.get("destination") || params.get("account_id") || "";
+      if (destination && /^G[A-Z2-7]{55}$/i.test(destination)) {
+        const memoVal = params.get("memo") || undefined;
+        return { address: destination, memo: memoVal };
+      }
+    }
+
+    return null;
+  };
 
   const handleCopy = () => {
+    if (!fullAddress) return;
     navigator.clipboard.writeText(fullAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -64,25 +126,185 @@ export default function PayPage() {
     }
   };
 
-  const handleStartScan = () => {
-    setScanState("scanning");
-    // Simulated scan detection
-    setTimeout(() => {
-      setDetectedAddress("GCZJ...8HNE");
-      setScanState("detected");
-    }, 2000);
+  const stopCamera = () => {
+    scanLoopActiveRef.current = false;
+    const stream = streamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+    }
+    streamRef.current = null;
+    if (videoRef.current) {
+      (videoRef.current as any).srcObject = null;
+    }
   };
 
-  const handleConfirmPayment = () => {
+  const startScan = () => {
+    setCameraError(null);
+    setDetectedAddress("");
+    setPaymentAmount("");
+    setScanState("scanning");
+  };
+
+  // Start/stop camera automatically based on scan state / tab.
+  useEffect(() => {
+    const shouldRun = activeTab === "scan" && scanState === "scanning";
+    if (!shouldRun) {
+      stopCamera();
+      return;
+    }
+
+    let cancelled = false;
+    scanLoopActiveRef.current = true;
+
+    const run = async () => {
+      if (typeof window === "undefined") return;
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError("Camera access is not available in this browser.");
+        setScanState("idle");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (!video) return;
+
+        (video as any).srcObject = stream;
+        await video.play();
+
+        if (!canUseBarcodeDetector) {
+          setCameraError("QR scanning is not supported in this browser. Try Chrome, or paste the address below.");
+          return;
+        }
+
+        const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+
+        const tick = async () => {
+          if (cancelled || !scanLoopActiveRef.current) return;
+          try {
+            if (video.readyState >= 2) {
+              const codes = await detector.detect(video);
+              const raw = codes?.[0]?.rawValue;
+              if (raw) {
+                const parsed = parseQrPayload(String(raw));
+                if (parsed?.address) {
+                  setDetectedAddress(parsed.address);
+                  if (parsed.memo) setMemo(parsed.memo);
+                  setScanState("detected");
+                  stopCamera();
+                  return;
+                }
+              }
+            }
+          } catch {
+            // ignore transient detector errors
+          }
+          requestAnimationFrame(tick);
+        };
+
+        requestAnimationFrame(tick);
+      } catch (e: any) {
+        setCameraError(e?.message || "Failed to open camera. Check browser permissions.");
+        setScanState("idle");
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, scanState, canUseBarcodeDetector]);
+
+  const handleConfirmPayment = async () => {
+    setPaymentError(null);
+    setPaymentTxHash(null);
+
+    if (!isConnected || !publicKey) {
+      setPaymentError("Connect your wallet from /wallet first.");
+      return;
+    }
+    if (!detectedAddress || !/^G[A-Z2-7]{55}$/i.test(detectedAddress)) {
+      setPaymentError("Invalid destination address.");
+      return;
+    }
+    const amt = Number.parseFloat(paymentAmount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setPaymentError("Enter a valid amount.");
+      return;
+    }
+
+    const horizonUrl = networkDetails?.networkUrl || "https://horizon-testnet.stellar.org";
+    const networkPassphrase = networkDetails?.networkPassphrase || StellarSdk.Networks.TESTNET;
+
     setScanState("confirming");
-    setTimeout(() => {
+    try {
+      // 1) Load account (sequence)
+      const accountRes = await fetch(`${horizonUrl.replace(/\/$/, "")}/accounts/${publicKey}`);
+      if (!accountRes.ok) throw new Error("Failed to load sender account from Horizon");
+      const accountData: any = await accountRes.json();
+      const account = new StellarSdk.Account(publicKey, String(accountData.sequence));
+
+      // 2) Build payment tx (XLM)
+      const fee = String(StellarSdk.BASE_FEE || 100);
+      const tx = new StellarSdk.TransactionBuilder(account, {
+        fee,
+        networkPassphrase,
+      })
+        .addOperation(
+          StellarSdk.Operation.payment({
+            destination: detectedAddress,
+            asset: StellarSdk.Asset.native(),
+            amount: amt.toFixed(7), // Horizon requires string decimal; Stellar uses 7 decimals
+          }),
+        )
+        .setTimeout(180)
+        .build();
+
+      // 3) Sign via Freighter
+      const signedXdr = await signTransaction(tx.toXDR(), { networkPassphrase });
+      if (!signedXdr) throw new Error("Signing was cancelled");
+
+      // 4) Submit to Horizon
+      const submitRes = await fetch(`${horizonUrl.replace(/\/$/, "")}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ tx: signedXdr }),
+      });
+      const submitJson: any = await submitRes.json().catch(() => ({}));
+      if (!submitRes.ok) {
+        const msg =
+          submitJson?.extras?.result_codes?.transaction ||
+          submitJson?.detail ||
+          "Transaction failed";
+        throw new Error(msg);
+      }
+
+      setPaymentTxHash(String(submitJson?.hash || ""));
       setScanState("success");
       setTimeout(() => {
         setScanState("idle");
         setDetectedAddress("");
         setPaymentAmount("");
-      }, 3000);
-    }, 2000);
+        setPaymentTxHash(null);
+        setPaymentError(null);
+      }, 3500);
+    } catch (e: any) {
+      setPaymentError(e?.message || "Failed to send payment");
+      setScanState("detected");
+    }
   };
 
   return (
@@ -110,7 +332,10 @@ export default function PayPage() {
               Generate
             </button>
             <button
-              onClick={() => setActiveTab("scan")}
+              onClick={() => {
+                setActiveTab("scan");
+                startScan();
+              }}
               className={cn(
                 "tab-trigger flex-1 flex items-center justify-center gap-2",
                 activeTab === "scan" && "bg-background shadow-sm",
@@ -214,7 +439,7 @@ export default function PayPage() {
                       </p>
                     </div>
                     <button
-                      onClick={handleStartScan}
+                      onClick={startScan}
                       className="w-full btn-fintech-primary"
                     >
                       <Camera className="w-5 h-5" />
@@ -237,12 +462,10 @@ export default function PayPage() {
                       placeholder="Paste wallet address..."
                       className="input-fintech text-center"
                       onChange={(e) => {
-                        if (e.target.value.length > 10) {
-                          setDetectedAddress(
-                            e.target.value.slice(0, 4) +
-                              "..." +
-                              e.target.value.slice(-4),
-                          );
+                        const parsed = parseQrPayload(e.target.value);
+                        if (parsed?.address) {
+                          setDetectedAddress(parsed.address);
+                          if (parsed.memo) setMemo(parsed.memo);
                           setScanState("detected");
                         }
                       }}
@@ -252,17 +475,23 @@ export default function PayPage() {
 
                 {scanState === "scanning" && (
                   <div className="space-y-6">
-                    {/* Simulated camera view */}
+                    {/* Camera view */}
                     <div className="relative aspect-square bg-foreground/5 rounded-2xl overflow-hidden">
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-48 h-48 border-2 border-foreground rounded-2xl relative">
-                          <div className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-2 border-l-2 border-foreground rounded-tl-lg" />
-                          <div className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-2 border-r-2 border-foreground rounded-tr-lg" />
-                          <div className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-2 border-l-2 border-foreground rounded-bl-lg" />
-                          <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-2 border-r-2 border-foreground rounded-br-lg" />
+                      <video
+                        ref={videoRef}
+                        playsInline
+                        muted
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
 
-                          {/* Scanning line animation */}
-                          <div className="absolute left-2 right-2 h-0.5 bg-foreground animate-pulse top-1/2 -translate-y-1/2" />
+                      {/* Scan frame overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-48 h-48 border-2 border-background/80 rounded-2xl relative">
+                          <div className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-2 border-l-2 border-background/80 rounded-tl-lg" />
+                          <div className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-2 border-r-2 border-background/80 rounded-tr-lg" />
+                          <div className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-2 border-l-2 border-background/80 rounded-bl-lg" />
+                          <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-2 border-r-2 border-background/80 rounded-br-lg" />
+                          <div className="absolute left-2 right-2 h-0.5 bg-background/80 animate-pulse top-1/2 -translate-y-1/2" />
                         </div>
                       </div>
 
@@ -280,10 +509,19 @@ export default function PayPage() {
                           <Flashlight className="w-5 h-5" />
                         </button>
                       </div>
+
+                      {cameraError && (
+                        <div className="absolute top-3 left-3 right-3 rounded-xl bg-background/90 border border-border p-3 text-sm">
+                          {cameraError}
+                        </div>
+                      )}
                     </div>
 
                     <button
-                      onClick={() => setScanState("idle")}
+                      onClick={() => {
+                        stopCamera();
+                        setScanState("idle");
+                      }}
                       className="w-full btn-fintech-secondary"
                     >
                       <X className="w-4 h-4" />
@@ -305,6 +543,12 @@ export default function PayPage() {
                         {detectedAddress}
                       </p>
                     </div>
+
+                    {paymentError && (
+                      <div className="p-3 rounded-xl border border-border bg-secondary text-sm">
+                        {paymentError}
+                      </div>
+                    )}
 
                     <div>
                       <label className="text-sm text-muted-foreground mb-2 block">
@@ -372,6 +616,11 @@ export default function PayPage() {
                       <p className="text-muted-foreground">
                         {paymentAmount} XLM sent to {detectedAddress}
                       </p>
+                      {paymentTxHash && (
+                        <p className="text-xs text-muted-foreground mt-2 break-all">
+                          Tx: {paymentTxHash}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
