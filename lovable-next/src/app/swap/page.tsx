@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownUp,
   ChevronDown,
@@ -14,8 +14,16 @@ import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/Card";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/walletContext";
-import { fetchAccountBalances, formatBalance, type AssetBalance } from "@/lib/balances";
-import { buildSwapTransaction, getQuote, submitSwapTransaction } from "@/lib/api";
+import {
+  fetchAccountBalances,
+  formatBalance,
+  type AssetBalance,
+} from "@/lib/balances";
+import {
+  buildSwapTransaction,
+  getQuote,
+  submitSwapTransaction,
+} from "@/lib/api";
 import { signTransaction } from "@stellar/freighter-api";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { toast } from "@/hooks/use-toast";
@@ -28,9 +36,9 @@ interface Asset {
 }
 
 const assets: Asset[] = [
-  { code: "USDC", name: "USD Coin", icon: "💵" },
-  { code: "EURC", name: "Euro Coin", icon: "💶" },
-  { code: "XLM", name: "Stellar Lumens", icon: "⭐" },
+  { code: "USDC", name: "USD Coin", icon: "" },
+  { code: "EURC", name: "Euro Coin", icon: "" },
+  { code: "XLM", name: "Stellar Lumens", icon: "" },
 ];
 
 type SwapState =
@@ -43,7 +51,14 @@ type SwapState =
   | "error";
 
 export default function SwapPage() {
-  const { isConnected, publicKey, connect, disconnect, isFreighterInstalled, networkDetails } = useWallet();
+  const {
+    isConnected,
+    publicKey,
+    connect,
+    disconnect,
+    isFreighterInstalled,
+    networkDetails,
+  } = useWallet();
 
   const [fromAsset, setFromAsset] = useState<Asset>(assets[0]);
   const [toAsset, setToAsset] = useState<Asset>(assets[1]);
@@ -53,6 +68,10 @@ export default function SwapPage() {
   const [swapState, setSwapState] = useState<SwapState>("idle");
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
+
+  // Refs for click-outside detection
+  const fromSelectorRef = useRef<HTMLDivElement>(null);
+  const toSelectorRef = useRef<HTMLDivElement>(null);
   const [balances, setBalances] = useState<AssetBalance[]>([]);
   const [loadingBalances, setLoadingBalances] = useState(false);
   const [quote, setQuote] = useState<any>(null);
@@ -67,7 +86,9 @@ export default function SwapPage() {
 
   const getBalance = useCallback(
     (assetCode: string) => {
-      const b = balances.find((x) => x.code === assetCode || x.asset === assetCode);
+      const b = balances.find(
+        (x) => x.code === assetCode || x.asset === assetCode,
+      );
       return b ? formatBalance(b.balance) : "0.00";
     },
     [balances],
@@ -143,6 +164,29 @@ export default function SwapPage() {
     if (amount) setSwapState("idle");
   }, [fromAsset.code, toAsset.code]);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        fromSelectorRef.current &&
+        !fromSelectorRef.current.contains(event.target as Node)
+      ) {
+        setShowFromSelector(false);
+      }
+      if (
+        toSelectorRef.current &&
+        !toSelectorRef.current.contains(event.target as Node)
+      ) {
+        setShowToSelector(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const handleSwap = async () => {
     setError(null);
 
@@ -192,7 +236,10 @@ export default function SwapPage() {
       const signedXdr = await signTransaction(txXdr, { networkPassphrase });
       if (!signedXdr) throw new Error("Transaction signing was cancelled");
 
-      const submitRes = await submitSwapTransaction(signedXdr, networkPassphrase);
+      const submitRes = await submitSwapTransaction(
+        signedXdr,
+        networkPassphrase,
+      );
 
       setSwapState("success");
       toast({
@@ -203,7 +250,9 @@ export default function SwapPage() {
       // Refresh balances after swap.
       if (publicKey) {
         setTimeout(() => {
-          fetchAccountBalances(publicKey, { horizonUrl: networkDetails?.networkUrl })
+          fetchAccountBalances(publicKey, {
+            horizonUrl: networkDetails?.networkUrl,
+          })
             .then(setBalances)
             .catch(() => {});
         }, 2000);
@@ -335,23 +384,25 @@ export default function SwapPage() {
               <span className="text-sm text-muted-foreground">You pay</span>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 overflow-visible">
               {/* From Input */}
-              <div className="bg-secondary rounded-xl p-4">
-                <div className="flex items-center gap-4">
+              <div className="bg-secondary rounded-xl p-4 relative overflow-visible">
+                <div className="flex items-center justify-between gap-4">
                   <input
                     type="text"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="flex-1 text-3xl font-semibold bg-transparent focus:outline-none placeholder:text-muted-foreground"
+                    className="flex-1 min-w-0 text-3xl font-semibold bg-transparent focus:outline-none placeholder:text-muted-foreground"
                   />
-                  <div className="relative">
+                  <div ref={fromSelectorRef} className="relative flex-shrink-0">
                     <button
                       onClick={() => setShowFromSelector(!showFromSelector)}
                       className="asset-selector"
                     >
-                      <span className="text-xl">{fromAsset.icon}</span>
+                      {fromAsset.icon && (
+                        <span className="text-xl">{fromAsset.icon}</span>
+                      )}
                       <span className="font-medium">{fromAsset.code}</span>
                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -369,7 +420,9 @@ export default function SwapPage() {
                               }}
                               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
                             >
-                              <span className="text-xl">{asset.icon}</span>
+                              {asset.icon && (
+                                <span className="text-xl">{asset.icon}</span>
+                              )}
                               <div className="text-left">
                                 <p className="font-medium">{asset.code}</p>
                                 <p className="text-xs text-muted-foreground">
@@ -387,12 +440,12 @@ export default function SwapPage() {
                 <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
                   <span>
                     Balance:{" "}
-                    {loadingBalances ? "Loading…" : `${getBalance(fromAsset.code)} ${fromAsset.code}`}
+                    {loadingBalances
+                      ? "Loading…"
+                      : `${getBalance(fromAsset.code)} ${fromAsset.code}`}
                   </span>
                   <button
-                    onClick={() =>
-                      setAmount(getBalance(fromAsset.code))
-                    }
+                    onClick={() => setAmount(getBalance(fromAsset.code))}
                     className="font-medium hover:text-foreground transition-colors"
                   >
                     MAX
@@ -414,27 +467,29 @@ export default function SwapPage() {
               </div>
 
               {/* To Input */}
-              <div className="bg-secondary rounded-xl p-4">
+              <div className="bg-secondary rounded-xl p-4 relative overflow-visible">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm text-muted-foreground">
                     You receive
                   </span>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between gap-4">
                   <span
                     className={cn(
-                      "flex-1 text-3xl font-semibold",
+                      "flex-1 min-w-0 text-3xl font-semibold",
                       loadingQuote ? "text-muted-foreground" : "",
                     )}
                   >
                     {estimatedOutput}
                   </span>
-                  <div className="relative">
+                  <div ref={toSelectorRef} className="relative flex-shrink-0">
                     <button
                       onClick={() => setShowToSelector(!showToSelector)}
                       className="asset-selector"
                     >
-                      <span className="text-xl">{toAsset.icon}</span>
+                      {toAsset.icon && (
+                        <span className="text-xl">{toAsset.icon}</span>
+                      )}
                       <span className="font-medium">{toAsset.code}</span>
                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -452,7 +507,9 @@ export default function SwapPage() {
                               }}
                               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
                             >
-                              <span className="text-xl">{asset.icon}</span>
+                              {asset.icon && (
+                                <span className="text-xl">{asset.icon}</span>
+                              )}
                               <div className="text-left">
                                 <p className="font-medium">{asset.code}</p>
                                 <p className="text-xs text-muted-foreground">
@@ -480,9 +537,15 @@ export default function SwapPage() {
                     <span>
                       {quote?.amountIn && quote?.amountOut
                         ? (() => {
-                            const inAmt = Number.parseFloat(quote.amountIn) / 10_000_000;
-                            const outAmt = Number.parseFloat(quote.amountOut) / 10_000_000;
-                            if (!Number.isFinite(inAmt) || !Number.isFinite(outAmt) || inAmt === 0) {
+                            const inAmt =
+                              Number.parseFloat(quote.amountIn) / 10_000_000;
+                            const outAmt =
+                              Number.parseFloat(quote.amountOut) / 10_000_000;
+                            if (
+                              !Number.isFinite(inAmt) ||
+                              !Number.isFinite(outAmt) ||
+                              inAmt === 0
+                            ) {
                               return `—`;
                             }
                             const rate = outAmt / inAmt;
@@ -495,7 +558,13 @@ export default function SwapPage() {
                     <span className="text-muted-foreground">Route</span>
                     <span>
                       {quote?.route?.length
-                        ? quote.route.map((hop: any) => hop?.fromAsset).concat([quote.route[quote.route.length - 1]?.toAsset]).filter(Boolean).join(" → ")
+                        ? quote.route
+                            .map((hop: any) => hop?.fromAsset)
+                            .concat([
+                              quote.route[quote.route.length - 1]?.toAsset,
+                            ])
+                            .filter(Boolean)
+                            .join(" → ")
                         : `${fromAsset.code} → ${toAsset.code}`}
                     </span>
                   </div>
@@ -509,7 +578,9 @@ export default function SwapPage() {
                   </div>
                   {typeof quote?.priceImpact === "number" && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Price Impact</span>
+                      <span className="text-muted-foreground">
+                        Price Impact
+                      </span>
                       <span>{quote.priceImpact.toFixed(2)}%</span>
                     </div>
                   )}
@@ -520,9 +591,7 @@ export default function SwapPage() {
             <CardFooter>
               <button
                 onClick={handleSwap}
-                disabled={
-                  !canSwap
-                }
+                disabled={!canSwap}
                 className={cn(
                   "w-full py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all",
                   canSwap
