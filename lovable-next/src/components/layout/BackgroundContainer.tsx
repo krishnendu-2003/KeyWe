@@ -17,7 +17,10 @@ export function BackgroundContainer({ children }: BackgroundContainerProps) {
   return (
     <div className="relative min-h-screen">
       {/* Fixed background with light rays */}
-      <div className="fixed-background">
+      <div
+        className="fixed-background"
+        style={{ width: "100vw", height: "100vh" }}
+      >
         <LightRays
           raysOrigin="top-center"
           raysColor={theme === "dark" ? "#ffffff" : "#000000"}
@@ -30,7 +33,7 @@ export function BackgroundContainer({ children }: BackgroundContainerProps) {
           distortion={0}
           pulsating={false}
           fadeDistance={1.2}
-          saturation={0}
+          saturation={0.3}
         />
       </div>
 
