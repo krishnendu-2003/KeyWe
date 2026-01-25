@@ -65,5 +65,9 @@ This starts:
 
 
 ## Screenshots
-<img src="docs/images//pic1.png" alt="Swap page" width="400" />>
-<img src="docs/images/pic2.png" alt="Swap page" width="400">
+<img src="docs/images/pic1.png" alt="Swap page" width="800" />
+<img src="docs/images/pic2.png" alt="Swap page" width="800" />
+<img src="docs/images/pic3.png " alt="Swap page" width="800" />
+<img src="docs/images/pic4.png" alt="Swap page" width="800" />
+<img src="docs/images/pic5.png" alt="Swap page" width="800" />
+<img src="docs/images/pic6.png" alt="Swap page" width="800" />
