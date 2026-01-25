@@ -5,7 +5,10 @@ export interface AssetBalance {
   issuer?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+// See `src/lib/api.ts` for rationale.
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:3001/api");
 
 async function fetchBalancesFromHorizon(publicKey: string, horizonUrl: string): Promise<AssetBalance[]> {
   const response = await fetch(`${horizonUrl.replace(/\/$/, "")}/accounts/${publicKey}`, {

@@ -1,4 +1,10 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+// IMPORTANT (static export / AWS):
+// - In production builds, we default to same-origin `/api` so you can route it via
+//   CloudFront (path pattern `/api/*`) to your backend without CORS issues.
+// - In development, default to localhost backend.
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:3001/api");
 
 export interface QuoteRequest {
   fromAsset: string;
