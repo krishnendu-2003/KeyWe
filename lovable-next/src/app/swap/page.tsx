@@ -255,7 +255,7 @@ export default function SwapPage() {
           })
             .then(setBalances)
             .catch(() => {});
-        }, 2000);
+    }, 2000);
       }
 
       // Clear input/quote.
@@ -409,7 +409,7 @@ export default function SwapPage() {
                       className="asset-selector"
                     >
                       {fromAsset.icon && (
-                        <span className="text-xl">{fromAsset.icon}</span>
+                      <span className="text-xl">{fromAsset.icon}</span>
                       )}
                       <span className="font-medium">{fromAsset.code}</span>
                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -429,7 +429,7 @@ export default function SwapPage() {
                               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
                             >
                               {asset.icon && (
-                                <span className="text-xl">{asset.icon}</span>
+                              <span className="text-xl">{asset.icon}</span>
                               )}
                               <div className="text-left">
                                 <p className="font-medium">{asset.code}</p>
@@ -496,7 +496,7 @@ export default function SwapPage() {
                       className="asset-selector"
                     >
                       {toAsset.icon && (
-                        <span className="text-xl">{toAsset.icon}</span>
+                      <span className="text-xl">{toAsset.icon}</span>
                       )}
                       <span className="font-medium">{toAsset.code}</span>
                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -516,7 +516,7 @@ export default function SwapPage() {
                               className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
                             >
                               {asset.icon && (
-                                <span className="text-xl">{asset.icon}</span>
+                              <span className="text-xl">{asset.icon}</span>
                               )}
                               <div className="text-left">
                                 <p className="font-medium">{asset.code}</p>
