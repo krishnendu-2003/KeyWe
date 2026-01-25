@@ -19,7 +19,6 @@ import { buildSwapTransaction, getQuote, submitSwapTransaction } from "@/lib/api
 import { signTransaction } from "@stellar/freighter-api";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { toast } from "@/hooks/use-toast";
-import { WalletConnect } from "@/components/WalletConnect";
 
 interface Asset {
   code: string;
@@ -259,8 +258,6 @@ export default function SwapPage() {
     <main className="w-full pb-16 min-h-screen">
       <SectionWrapper>
         <div className="max-w-md mx-auto">
-          <WalletConnect className="mb-4" />
-
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -283,6 +280,16 @@ export default function SwapPage() {
               <Settings className="w-5 h-5" />
             </button>
           </div>
+
+          {!isConnected && (
+            <Card variant="elevated" className="mb-4">
+              <CardContent className="p-4">
+                <p className="text-sm text-muted-foreground">
+                  Connect your wallet from the <a className="underline" href="/wallet">Wallet</a> page to start swapping.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {error && (
             <div className="mb-4 p-4 rounded-xl border border-border bg-card flex items-start gap-3 animate-fade-in">

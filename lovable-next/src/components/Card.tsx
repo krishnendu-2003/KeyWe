@@ -1,10 +1,10 @@
 "use client";
 
-import { ReactNode, CSSProperties } from "react";
+import type { ReactNode, CSSProperties, HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 import { GlowingEffect } from "@/components/GlowingEffect";
 
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
   variant?: "default" | "glass" | "elevated";
@@ -18,6 +18,7 @@ export function Card({
   variant = "default",
   glowEffect = false,
   style,
+  ...props
 }: CardProps) {
   const baseStyles = "relative rounded-2xl";
 
@@ -28,7 +29,7 @@ export function Card({
   };
 
   return (
-    <div className={cn(baseStyles, variants[variant], className)} style={style}>
+    <div className={cn(baseStyles, variants[variant], className)} style={style} {...props}>
       {glowEffect && (
         <GlowingEffect
           spread={40}

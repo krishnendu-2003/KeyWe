@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Wallet,
   Check,
@@ -12,31 +12,58 @@ import {
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
 import { cn } from "@/lib/utils";
+import { useWallet } from "@/lib/walletContext";
+import { fetchAccountBalances, formatBalance } from "@/lib/balances";
+import { explorerNetworkFromHorizonUrl } from "@/lib/history";
 
 type WalletState = "disconnected" | "connecting" | "connected" | "error";
 
 export default function WalletPage() {
+  const { isConnected, publicKey, isFreighterInstalled, connect, disconnect, networkDetails } = useWallet();
+
   const [walletState, setWalletState] = useState<WalletState>("disconnected");
-  const [address, setAddress] = useState("");
   const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [balances, setBalances] = useState<{ asset: string; balance: string }[]>([]);
+  const [loadingBalances, setLoadingBalances] = useState(false);
 
-  const handleConnect = () => {
+  const horizonUrl = networkDetails?.networkUrl || (network === "mainnet" ? "https://horizon.stellar.org" : "https://horizon-testnet.stellar.org");
+  const explorerNetwork = explorerNetworkFromHorizonUrl(horizonUrl);
+
+  useEffect(() => {
+    if (isConnected && publicKey) setWalletState("connected");
+    else setWalletState("disconnected");
+  }, [isConnected, publicKey]);
+
+  const handleConnect = async () => {
+    setError(null);
+    if (!isFreighterInstalled) {
+      setError("Freighter wallet extension is not installed.");
+      setWalletState("error");
+      return;
+    }
+
     setWalletState("connecting");
-    // Simulated connection
-    setTimeout(() => {
-      setAddress("GBZX4QDZKGWPK4KQSXCF6QR2JNQKRHM3VVGVPKMQ5ZSQJWKC4GYE");
+    try {
+      await connect();
       setWalletState("connected");
-    }, 1500);
+    } catch (e: any) {
+      setError(e?.message || "Failed to connect wallet");
+      setWalletState("error");
+    }
   };
 
   const handleDisconnect = () => {
+    disconnect();
+    setBalances([]);
+    setError(null);
     setWalletState("disconnected");
-    setAddress("");
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(address);
+    if (!publicKey) return;
+    navigator.clipboard.writeText(publicKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -44,6 +71,27 @@ export default function WalletPage() {
   const shortenAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-6)}`;
   };
+
+  useEffect(() => {
+    const run = async () => {
+      if (!isConnected || !publicKey) return;
+      setLoadingBalances(true);
+      try {
+        const b = await fetchAccountBalances(publicKey, { horizonUrl });
+        setBalances(b.map((x) => ({ asset: x.asset, balance: x.balance })));
+      } catch (e: any) {
+        setError(e?.message || "Failed to fetch balances");
+      } finally {
+        setLoadingBalances(false);
+      }
+    };
+    void run();
+  }, [isConnected, publicKey, horizonUrl]);
+
+  const xlmBalance = useMemo(() => {
+    const x = balances.find((b) => b.asset === "XLM");
+    return x ? formatBalance(x.balance) : "0.00";
+  }, [balances]);
 
   return (
     <main className="w-full pb-16 min-h-screen">
@@ -76,6 +124,7 @@ export default function WalletPage() {
                 <button
                   onClick={handleConnect}
                   className="w-full btn-fintech-primary"
+                  disabled={!isFreighterInstalled}
                 >
                   <img
                     src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMiIgZmlsbD0iY3VycmVudENvbG9yIi8+PC9zdmc+"
@@ -158,7 +207,7 @@ export default function WalletPage() {
                     </p>
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-mono font-medium">
-                        {shortenAddress(address)}
+                        {publicKey ? shortenAddress(publicKey) : "—"}
                       </p>
                       <div className="flex items-center gap-1">
                         <button
@@ -172,7 +221,7 @@ export default function WalletPage() {
                           )}
                         </button>
                         <a
-                          href={`https://stellar.expert/explorer/${network}/account/${address}`}
+                          href={`https://stellar.expert/explorer/${explorerNetwork}/account/${publicKey}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-2 rounded-lg hover:bg-accent transition-colors"
@@ -188,9 +237,8 @@ export default function WalletPage() {
                     <p className="text-xs text-muted-foreground mb-2">
                       XLM Balance
                     </p>
-                    <p className="text-3xl font-bold">1,234.56</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      ≈ $123.45 USD
+                    <p className="text-3xl font-bold">
+                      {loadingBalances ? "Loading…" : xlmBalance}
                     </p>
                   </div>
 
@@ -231,8 +279,7 @@ export default function WalletPage() {
                     Connection Failed
                   </h3>
                   <p className="text-muted-foreground text-sm">
-                    Could not connect to Freighter. Make sure it's installed and
-                    try again.
+                    {error || "Could not connect to Freighter. Make sure it's installed and try again."}
                   </p>
                 </div>
 
