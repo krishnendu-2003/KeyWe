@@ -12,6 +12,7 @@ import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/walletContext";
+import { malinton } from "@/app/fonts";
 import {
   assetCodeFromOp,
   explorerNetworkFromHorizonUrl,
@@ -221,7 +222,7 @@ export default function HistoryPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold mb-1">Transaction History</h1>
+              <h1 className={cn("text-2xl font-bold mb-1", malinton.className)}>Transaction History</h1>
               <p className="text-muted-foreground text-sm">
                 {loadingTxs ? "Loading…" : `${filteredTransactions.length} transactions`}
               </p>

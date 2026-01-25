@@ -14,6 +14,7 @@ import {
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
 import { cn } from "@/lib/utils";
+import { malinton } from "@/app/fonts";
 
 const sections = [
   {
@@ -186,7 +187,7 @@ export default function DocsPage() {
                     )}
                   >
                     <section.icon className="w-5 h-5" />
-                    <span className="font-medium text-sm">{section.title}</span>
+                    <span className={cn("font-medium text-sm", malinton.className)}>{section.title}</span>
                     <ChevronRight
                       className={cn(
                         "rotate-0 w-4 h-4 ml-auto transition-transform",
@@ -207,7 +208,7 @@ export default function DocsPage() {
                       <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
                         <currentSection.icon className="w-6 h-6" />
                       </div>
-                      <h2 className="text-2xl font-bold">
+                      <h2 className={cn("text-2xl font-bold", malinton.className)}>
                         {currentSection.title}
                       </h2>
                     </div>

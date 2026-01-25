@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
+import { cn } from "@/lib/utils";
+import { malinton } from "@/app/fonts";
 
 const smsExamples = [
   {
@@ -54,7 +56,7 @@ export default function SmsPage() {
               <Clock className="w-4 h-4" />
               Coming in Phase 2
             </div>
-            <h1 className="text-3xl font-bold mb-4">SMS Swaps</h1>
+            <h1 className={cn("text-3xl font-bold mb-4", malinton.className)}>SMS Swaps</h1>
             <p className="text-muted-foreground max-w-md mx-auto">
               Execute swaps via simple text commands. No app required.
             </p>

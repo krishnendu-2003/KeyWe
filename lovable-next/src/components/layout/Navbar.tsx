@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/walletContext";
+import { malinton } from "@/app/fonts";
 
 const navItems = [
   { label: "Swap", path: "/swap" },
@@ -33,7 +34,7 @@ export function Navbar() {
           <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center">
             <span className="text-background text-sm font-bold">K</span>
           </div>
-          <span className="hidden sm:inline">KeyWe</span>
+          <span className={cn("hidden sm:inline", malinton.className)}>KeyWe</span>
         </Link>
 
         {/* Desktop Navigation */}
