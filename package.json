@@ -1,7 +1,7 @@
 {
   "name": "keywe-stellar-swap",
   "version": "1.0.0",
-  "description": "Stellar Swap Aggregator - Jupiter-style DEX aggregator for Stellar",
+  "description": "Stellar Swap Aggregator-DEX aggregator for Stellar",
   "private": true,
   "workspaces": [
     "backend",
