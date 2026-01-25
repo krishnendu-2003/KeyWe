@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'KeyWe - Stellar Swap Aggregator',
-  description: 'Jupiter-style DEX aggregator for Stellar Network',
+  description: 'DEX aggregator for Stellar Network',
 }
 
 export default function RootLayout({
