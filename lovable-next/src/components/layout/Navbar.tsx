@@ -6,6 +6,7 @@ import { Sun, Moon, Wallet, Menu, X } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useWallet } from "@/lib/walletContext";
 
 const navItems = [
   { label: "Swap", path: "/swap" },
@@ -17,6 +18,7 @@ const navItems = [
 
 export function Navbar() {
   const { theme, toggleTheme } = useTheme();
+  const { isConnected } = useWallet();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -71,7 +73,7 @@ export function Navbar() {
             className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-full bg-foreground text-background text-sm font-medium transition-opacity hover:opacity-90"
           >
             <Wallet className="w-4 h-4" />
-            <span>Connect</span>
+            <span>{isConnected ? "Connected" : "Connect"}</span>
           </Link>
 
           {/* Mobile menu button */}
@@ -114,7 +116,7 @@ export function Navbar() {
               className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-foreground text-background text-sm font-medium mt-2"
             >
               <Wallet className="w-4 h-4" />
-              <span>Connect Wallet</span>
+              <span>{isConnected ? "Connected" : "Connect Wallet"}</span>
             </Link>
           </div>
         </div>
