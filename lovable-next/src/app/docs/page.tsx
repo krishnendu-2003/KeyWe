@@ -153,7 +153,7 @@ export default function DocsPage() {
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-3xl font-bold mb-4">Documentation</h1>
+            <h1 className={cn("text-3xl font-bold mb-4", malinton.className)}>Documentation</h1>
             <p className="text-muted-foreground max-w-md mx-auto">
               Everything you need to know about KeyWe Pay
             </p>
