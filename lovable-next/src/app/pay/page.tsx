@@ -358,14 +358,24 @@ export default function PayPage() {
               <CardContent className="flex flex-col items-center space-y-6">
                 {/* QR Code */}
                 <div className="p-6 bg-background rounded-2xl">
-                  <QRCodeSVG
-                    id="qr-code"
-                    value={qrValue}
-                    size={200}
-                    level="H"
-                    includeMargin={false}
-                    className="rounded-lg"
-                  />
+                  {fullAddress ? (
+                    <QRCodeSVG
+                      id="qr-code"
+                      value={qrValue}
+                      size={200}
+                      level="H"
+                      includeMargin={false}
+                      className="rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-[200px] h-[200px] rounded-lg border border-border flex items-center justify-center text-center text-sm text-muted-foreground p-4">
+                      Connect your wallet on{" "}
+                      <a className="underline" href="/wallet">
+                        Wallet
+                      </a>{" "}
+                      to generate your QR
+                    </div>
+                  )}
                 </div>
 
                 {/* Address Display */}
