@@ -39,7 +39,7 @@ export function Card({
           borderWidth={2}
         />
       )}
-      <div className="relative z-10">{children}</div>
+      <div className="relative z-10 overflow-visible">{children}</div>
     </div>
   );
 }
