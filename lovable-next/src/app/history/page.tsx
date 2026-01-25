@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -50,12 +50,17 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState<TransactionType | "all">("all");
   const [showFilters, setShowFilters] = useState(false);
 
-  const [txs, setTxs] = useState<UiTx[]>([]);
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pages, setPages] = useState<Record<number, UiTx[]>>({});
+  const [nextCursorByPage, setNextCursorByPage] = useState<Record<number, string | null>>({});
+  const [hasMoreByPage, setHasMoreByPage] = useState<Record<number, boolean>>({});
   const [loadingTxs, setLoadingTxs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [opsByHash, setOpsByHash] = useState<Record<string, HorizonOperation[]>>({});
   const [loadingOps, setLoadingOps] = useState<Record<string, boolean>>({});
+  const prefetchedHashesRef = useRef<Set<string>>(new Set());
 
   const getStatusBadge = (status: TransactionStatus) => {
     switch (status) {
@@ -94,6 +99,12 @@ export default function HistoryPage() {
   const horizonUrl = networkDetails?.networkUrl || "https://horizon-testnet.stellar.org";
   const explorerNetwork = explorerNetworkFromHorizonUrl(horizonUrl);
 
+  const fmt3 = (v: any) => {
+    const n = Number.parseFloat(String(v ?? ""));
+    if (!Number.isFinite(n)) return "0.000";
+    return n.toFixed(3);
+  };
+
   const classifyTxFromOps = (ops: HorizonOperation[] | undefined): Partial<Pick<UiTx, "type" | "description" | "amountPrimary" | "amountSecondary" | "address">> => {
     if (!ops?.length || !publicKey) return {};
 
@@ -111,7 +122,7 @@ export default function HistoryPage() {
           type: "payment",
           address: to,
           description: `Sent to ${to}`,
-          amountPrimary: `-${amt} ${asset}`,
+          amountPrimary: `-${fmt3(amt)} ${asset}`,
         };
       }
       if (to === pk) {
@@ -119,13 +130,13 @@ export default function HistoryPage() {
           type: "receive",
           address: from,
           description: `Received from ${from}`,
-          amountPrimary: `+${amt} ${asset}`,
+          amountPrimary: `+${fmt3(amt)} ${asset}`,
         };
       }
       return {
         type: "payment",
-        description: `Payment ${amt} ${asset}`,
-        amountPrimary: `${amt} ${asset}`,
+        description: `Payment ${fmt3(amt)} ${asset}`,
+        amountPrimary: `${fmt3(amt)} ${asset}`,
       };
     }
 
@@ -146,45 +157,105 @@ export default function HistoryPage() {
     return {
       type: "swap",
       address: toAddr,
-      description: `${inAmt} ${inAsset} → ${outAmt} ${outAsset}`,
-      amountPrimary: `-${inAmt} ${inAsset}`,
-      amountSecondary: `+${outAmt} ${outAsset}`,
+      description: `${fmt3(inAmt)} ${inAsset} → ${fmt3(outAmt)} ${outAsset}`,
+      amountPrimary: `-${fmt3(inAmt)} ${inAsset}`,
+      amountSecondary: `+${fmt3(outAmt)} ${outAsset}`,
     };
   };
 
-  useEffect(() => {
-    const run = async () => {
-      setError(null);
-      setTxs([]);
-      if (!isConnected || !publicKey) return;
+  const currentPageTxs = useMemo(() => pages[currentPage] || [], [pages, currentPage]);
 
-      setLoadingTxs(true);
-      try {
-        const records = await fetchAccountTransactions({ horizonUrl, publicKey, limit: 50 });
-        const ui: UiTx[] = records.map((t) => ({
-          id: t.id,
-          type: "payment",
-          status: t.successful ? "completed" : "failed",
-          description: `Transaction • ${t.operation_count} ops`,
-          amountPrimary: `${(Number(t.fee_charged) / 10_000_000).toFixed(5)} XLM fee`,
-          createdAt: t.created_at,
-          txHash: t.hash,
-          raw: t,
-        }));
-        setTxs(ui);
-      } catch (e: any) {
-        setError(e?.message || "Failed to fetch transaction history");
-      } finally {
-        setLoadingTxs(false);
+  const maxLoadedPage = useMemo(() => {
+    const nums = Object.keys(pages).map((k) => Number.parseInt(k, 10)).filter((n) => Number.isFinite(n));
+    return nums.length ? Math.max(...nums) : 0;
+  }, [pages]);
+
+  const canGoPrev = currentPage > 1;
+  const canGoNext = !!hasMoreByPage[currentPage] && !!nextCursorByPage[currentPage];
+
+  const updateTxByHash = (hash: string, updater: (t: UiTx) => UiTx) => {
+    setPages((prev) => {
+      let changed = false;
+      const next: Record<number, UiTx[]> = {};
+      for (const [k, list] of Object.entries(prev)) {
+        const pageNum = Number(k);
+        if (!Number.isFinite(pageNum)) continue;
+        const idx = list.findIndex((t) => t.txHash === hash);
+        if (idx === -1) {
+          next[pageNum] = list;
+          continue;
+        }
+        const copy = list.slice();
+        copy[idx] = updater(copy[idx]);
+        next[pageNum] = copy;
+        changed = true;
       }
-    };
-    void run();
+      return changed ? next : prev;
+    });
+  };
+
+  const loadPage = async (page: number) => {
+    if (!isConnected || !publicKey) return;
+    if (pages[page]) return;
+
+    // Ensure we have a cursor from the previous page (sequential paging).
+    let cursor: string | undefined;
+    if (page > 1) {
+      const prevCursor = nextCursorByPage[page - 1];
+      if (!prevCursor) return;
+      cursor = prevCursor;
+    }
+
+    setLoadingTxs(true);
+    setError(null);
+    try {
+      const records = await fetchAccountTransactions({
+        horizonUrl,
+        publicKey,
+        limit: PAGE_SIZE,
+        cursor,
+      });
+
+      const ui: UiTx[] = records.map((t) => ({
+        id: t.id,
+        type: "payment",
+        status: t.successful ? "completed" : "failed",
+        description: `Transaction • ${t.operation_count} ops`,
+        amountPrimary: "—",
+        createdAt: t.created_at,
+        txHash: t.hash,
+        raw: t,
+      }));
+
+      const nextCursor = records.length ? records[records.length - 1].paging_token : null;
+      setPages((p) => ({ ...p, [page]: ui }));
+      setNextCursorByPage((p) => ({ ...p, [page]: nextCursor }));
+      setHasMoreByPage((p) => ({ ...p, [page]: records.length === PAGE_SIZE }));
+    } catch (e: any) {
+      setError(e?.message || "Failed to fetch transaction history");
+    } finally {
+      setLoadingTxs(false);
+    }
+  };
+
+  useEffect(() => {
+    // Reset pagination/cache on wallet/network change.
+    setCurrentPage(1);
+    setPages({});
+    setNextCursorByPage({});
+    setHasMoreByPage({});
+    setExpanded({});
+    prefetchedHashesRef.current = new Set();
+
+    if (!isConnected || !publicKey) return;
+    void loadPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, publicKey, horizonUrl]);
 
   const filteredTransactions = useMemo(() => {
-    const base = filter === "all" ? txs : txs.filter((t) => t.type === filter);
+    const base = filter === "all" ? currentPageTxs : currentPageTxs.filter((t) => t.type === filter);
     return base;
-  }, [txs, filter]);
+  }, [currentPageTxs, filter]);
 
   const ensureOpsLoaded = async (hash: string) => {
     if (opsByHash[hash] || loadingOps[hash]) return;
@@ -194,26 +265,34 @@ export default function HistoryPage() {
       setOpsByHash((p) => ({ ...p, [hash]: ops }));
 
       // Backfill UI details once we have ops.
-      setTxs((prev) =>
-        prev.map((t) => {
-          if (t.txHash !== hash) return t;
-          const inferred = classifyTxFromOps(ops);
-          return {
-            ...t,
-            type: inferred.type || t.type,
-            description: inferred.description || t.description,
-            amountPrimary: inferred.amountPrimary || t.amountPrimary,
-            amountSecondary: inferred.amountSecondary || t.amountSecondary,
-            address: inferred.address || t.address,
-          };
-        }),
-      );
+      const inferred = classifyTxFromOps(ops);
+      updateTxByHash(hash, (t) => ({
+        ...t,
+        type: inferred.type || t.type,
+        description: inferred.description || t.description,
+        amountPrimary: inferred.amountPrimary || t.amountPrimary,
+        amountSecondary: inferred.amountSecondary || t.amountSecondary,
+        address: inferred.address || t.address,
+      }));
     } catch (e: any) {
       setError(e?.message || "Failed to load transaction operations");
     } finally {
       setLoadingOps((p) => ({ ...p, [hash]: false }));
     }
   };
+
+  // Prefetch ops for the most recent transactions so the list can show
+  // transferred/swapped amounts instead of the fee.
+  useEffect(() => {
+    if (!isConnected) return;
+    const hashes = currentPageTxs.slice(0, 15).map((t) => t.txHash);
+    hashes.forEach((h) => {
+      if (prefetchedHashesRef.current.has(h)) return;
+      prefetchedHashesRef.current.add(h);
+      void ensureOpsLoaded(h);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, currentPageTxs]);
 
   return (
     <main className="w-full pb-16 min-h-screen">
@@ -224,7 +303,7 @@ export default function HistoryPage() {
             <div>
               <h1 className={cn("text-2xl font-bold mb-1", malinton.className)}>Transaction History</h1>
               <p className="text-muted-foreground text-sm">
-                {loadingTxs ? "Loading…" : `${filteredTransactions.length} transactions`}
+                {loadingTxs ? "Loading…" : `${filteredTransactions.length} transactions • Page ${currentPage}`}
               </p>
             </div>
             <button
@@ -313,7 +392,9 @@ export default function HistoryPage() {
 
                       <div className="flex items-center gap-3">
                         <div className="text-right">
-                          <p className="font-medium">{tx.amountPrimary}</p>
+                          <p className="font-medium">
+                            {loadingOps[tx.txHash] ? "…" : tx.amountPrimary}
+                          </p>
                           {tx.amountSecondary && (
                             <p className="text-sm text-muted-foreground">{tx.amountSecondary}</p>
                           )}
@@ -397,6 +478,70 @@ export default function HistoryPage() {
                 </p>
               </CardContent>
             </Card>
+          )}
+
+          {/* Pagination */}
+          {isConnected && (
+            <div className="mt-8 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={!canGoPrev}
+                className={cn(
+                  "px-3 py-2 rounded-lg border border-border text-sm",
+                  canGoPrev ? "hover:bg-secondary" : "opacity-50 cursor-not-allowed",
+                )}
+              >
+                Prev
+              </button>
+
+              {Array.from({ length: Math.max(1, maxLoadedPage + (canGoNext ? 1 : 0)) }, (_, i) => i + 1).map(
+                (n) => {
+                  const isActive = n === currentPage;
+                  const isLoaded = !!pages[n];
+                  const isNextLoadable = n === maxLoadedPage + 1 && canGoNext;
+                  const disabled = !(isLoaded || isNextLoadable);
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      disabled={disabled}
+                      onClick={async () => {
+                        if (n === currentPage) return;
+                        if (!pages[n]) {
+                          await loadPage(n);
+                        }
+                        setCurrentPage(n);
+                      }}
+                      className={cn(
+                        "min-w-10 px-3 py-2 rounded-lg border border-border text-sm",
+                        isActive ? "bg-foreground text-background" : "hover:bg-secondary",
+                        disabled && "opacity-50 cursor-not-allowed hover:bg-transparent",
+                      )}
+                    >
+                      {n}
+                    </button>
+                  );
+                },
+              )}
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!canGoNext) return;
+                  const next = currentPage + 1;
+                  if (!pages[next]) await loadPage(next);
+                  setCurrentPage(next);
+                }}
+                disabled={!canGoNext}
+                className={cn(
+                  "px-3 py-2 rounded-lg border border-border text-sm",
+                  canGoNext ? "hover:bg-secondary" : "opacity-50 cursor-not-allowed",
+                )}
+              >
+                Next
+              </button>
+            </div>
           )}
         </div>
       </SectionWrapper>

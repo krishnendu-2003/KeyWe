@@ -82,10 +82,16 @@ export async function fetchAccountTransactions(params: {
   horizonUrl: string;
   publicKey: string;
   limit?: number;
+  cursor?: string;
 }): Promise<HorizonTransaction[]> {
-  const { horizonUrl, publicKey, limit = 50 } = params;
+  const { horizonUrl, publicKey, limit = 50, cursor } = params;
   const base = normalizeHorizonUrl(horizonUrl);
-  const res = await fetch(`${base}/accounts/${publicKey}/transactions?order=desc&limit=${limit}`, {
+  const qs = new URLSearchParams({
+    order: "desc",
+    limit: String(limit),
+    ...(cursor ? { cursor } : {}),
+  });
+  const res = await fetch(`${base}/accounts/${publicKey}/transactions?${qs.toString()}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
