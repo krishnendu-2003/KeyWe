@@ -2,7 +2,15 @@ import { Router } from "express";
 import { SwapService } from "../services/swapService.js";
 
 const router = Router();
-const swapService = new SwapService();
+
+// Lazy-load SwapService to avoid SECRET_KEY requirement at startup
+let swapService: SwapService | null = null;
+function getSwapService() {
+  if (!swapService) {
+    swapService = new SwapService();
+  }
+  return swapService;
+}
 
 router.post("/build", async (req, res) => {
   try {
@@ -14,7 +22,8 @@ router.post("/build", async (req, res) => {
       });
     }
 
-    const result = await swapService.buildSwapTransaction({
+    const service = getSwapService();
+    const result = await service.buildSwapTransaction({
       route,
       userPublicKey,
       amountIn,
@@ -41,7 +50,8 @@ router.post("/execute", async (req, res) => {
       });
     }
 
-    const result = await swapService.submitTransaction(signedTransactionXdr, networkPassphrase);
+    const service = getSwapService();
+    const result = await service.submitTransaction(signedTransactionXdr, networkPassphrase);
     res.json(result);
   } catch (error: any) {
     console.error("Swap execution error:", error);
@@ -50,3 +60,4 @@ router.post("/execute", async (req, res) => {
 });
 
 export { router as swapRoutes };
+

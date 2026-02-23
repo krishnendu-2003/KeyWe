@@ -12,7 +12,8 @@ import { malinton } from "@/app/fonts";
 const navItems = [
   { label: "Swap", path: "/swap" },
   { label: "Pay", path: "/pay" },
-  { label: "SMS", path: "/sms" },
+  { label: "Properties", path: "/properties" },
+  { label: "Landlord", path: "/landlord" },
   { label: "History", path: "/history" },
   { label: "Docs", path: "/docs" },
 ];
@@ -24,27 +25,29 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-3xl px-4">
-      <nav className="glass-nav px-2 py-2 flex items-center justify-between gap-2">
+    <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl px-4">
+      <nav className="glass-nav px-3 py-2 flex items-center justify-between gap-2">
         {/* Logo */}
         <Link
           href="/"
-          className="flex items-center gap-2 px-4 py-2 font-bold text-lg tracking-tight"
+          className="flex items-center gap-2 px-3 py-2 font-bold text-lg tracking-tight shrink-0"
         >
           <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center">
             <span className="text-background text-sm font-bold">K</span>
           </div>
-          <span className={cn("hidden sm:inline", malinton.className)}>KeyWe</span>
+          <span className={cn("hidden sm:inline", malinton.className)}>
+            KeyWe
+          </span>
         </Link>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden lg:flex items-center gap-1">
           {navItems.map((item) => (
             <Link
               key={item.path}
               href={item.path}
               className={cn(
-                "px-4 py-2 text-sm font-medium rounded-full transition-colors",
+                "px-3 py-2 text-sm font-medium rounded-full transition-colors whitespace-nowrap",
                 pathname === item.path
                   ? "bg-foreground text-background"
                   : "hover:bg-secondary",
@@ -56,7 +59,7 @@ export function Navbar() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={toggleTheme}
             className="p-2.5 rounded-full hover:bg-secondary transition-colors"
@@ -71,7 +74,7 @@ export function Navbar() {
 
           <Link
             href="/wallet"
-            className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-full bg-foreground text-background text-sm font-medium transition-opacity hover:opacity-90"
+            className="hidden sm:flex items-center gap-2 px-3 py-2.5 rounded-full bg-foreground text-background text-sm font-medium transition-opacity hover:opacity-90 whitespace-nowrap"
           >
             <Wallet className="w-4 h-4" />
             <span>{isConnected ? "Connected" : "Connect"}</span>
@@ -80,7 +83,7 @@ export function Navbar() {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2.5 rounded-full hover:bg-secondary transition-colors"
+            className="lg:hidden p-2.5 rounded-full hover:bg-secondary transition-colors"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? (
@@ -94,7 +97,7 @@ export function Navbar() {
 
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
-        <div className="md:hidden glass-card mt-2 p-4 animate-slide-up">
+        <div className="lg:hidden glass-card mt-2 p-4 animate-slide-up">
           <div className="flex flex-col gap-2">
             {navItems.map((item) => (
               <Link

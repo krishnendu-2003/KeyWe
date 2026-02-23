@@ -23,12 +23,18 @@ export interface SwapResponse {
 }
 
 export class SwapService {
-  private contractService: ContractService;
+  private contractService: ContractService | null = null;
   private pathPaymentService: PathPaymentService;
 
   constructor() {
-    this.contractService = new ContractService();
     this.pathPaymentService = new PathPaymentService();
+  }
+
+  private getContractService() {
+    if (!this.contractService) {
+      this.contractService = new ContractService();
+    }
+    return this.contractService;
   }
 
   async buildSwapTransaction(request: SwapRequest): Promise<SwapResponse> {

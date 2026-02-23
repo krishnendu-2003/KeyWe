@@ -9,6 +9,7 @@ import {
   Shield,
   Zap,
   Globe,
+  Building2,
 } from "lucide-react";
 import { SectionWrapper } from "@/components/layout/SectionWrapper";
 import { Card, CardContent } from "@/components/Card";
@@ -29,10 +30,11 @@ const features = [
       "Scan and pay instantly. Generate your own QR to receive payments anywhere.",
   },
   {
-    icon: MessageSquare,
-    title: "SMS Swaps",
+    icon: Building2,
+    title: "RWA Deposits",
     description:
-      "Execute swaps via SMS commands. No app needed. Coming in Phase 2.",
+      "Manage security deposits with blockchain escrow. Perfect for landlords and property managers.",
+    link: "/landlord",
   },
 ];
 
@@ -83,7 +85,12 @@ export default function LandingPage() {
             <span>Built on Stellar Network</span>
           </div>
 
-          <h1 className={cn("text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-6", malinton.className)}>
+          <h1
+            className={cn(
+              "text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-6",
+              malinton.className,
+            )}
+          >
             Swap & Pay on Stellar
             <br />
             <span className="text-muted-foreground">as simple as UPI</span>
@@ -113,39 +120,70 @@ export default function LandingPage() {
       {/* Features Section */}
       <SectionWrapper id="features" className="py-24">
         <div className="text-center mb-16">
-          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>Everything you need</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>
+            Everything you need
+          </h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
             A complete toolkit for Stellar payments and swaps.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <Card
-              key={feature.title}
-              variant="glass"
-              glowEffect
-              className="animate-slide-up"
-              style={
-                { animationDelay: `${index * 100}ms` } as React.CSSProperties
-              }
-            >
-              <CardContent className="p-8">
-                <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-6">
-                  <feature.icon className="w-6 h-6" />
-                </div>
-                <h3 className={cn("text-xl font-semibold mb-3", malinton.className)}>{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
-              </CardContent>
-            </Card>
-          ))}
+          {features.map((feature, index) => {
+            const card = (
+              <Card
+                key={feature.title}
+                variant="glass"
+                glowEffect
+                className={cn(
+                  "animate-slide-up h-full",
+                  feature.link &&
+                    "hover:scale-105 transition-transform duration-200 cursor-pointer",
+                )}
+                style={
+                  { animationDelay: `${index * 100}ms` } as React.CSSProperties
+                }
+              >
+                <CardContent className="p-8">
+                  <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-6">
+                    <feature.icon className="w-6 h-6" />
+                  </div>
+                  <h3
+                    className={cn(
+                      "text-xl font-semibold mb-3",
+                      malinton.className,
+                    )}
+                  >
+                    {feature.title}
+                  </h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                  {feature.link && (
+                    <div className="mt-4 flex items-center gap-2 text-primary font-medium">
+                      <span>Learn more</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+
+            return feature.link ? (
+              <Link key={`link-${feature.title}`} href={feature.link}>
+                {card}
+              </Link>
+            ) : (
+              card
+            );
+          })}
         </div>
       </SectionWrapper>
 
       {/* How It Works */}
       <SectionWrapper className="py-24 border-y border-border">
         <div className="text-center mb-16">
-          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>How it works</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>
+            How it works
+          </h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
             Get started in three simple steps.
           </p>
@@ -163,7 +201,11 @@ export default function LandingPage() {
               <div className="text-6xl font-bold text-muted-foreground/20 mb-4">
                 {step.step}
               </div>
-              <h3 className={cn("text-xl font-semibold mb-3", malinton.className)}>{step.title}</h3>
+              <h3
+                className={cn("text-xl font-semibold mb-3", malinton.className)}
+              >
+                {step.title}
+              </h3>
               <p className="text-muted-foreground">{step.description}</p>
             </div>
           ))}
@@ -173,7 +215,9 @@ export default function LandingPage() {
       {/* Trust & Security */}
       <SectionWrapper className="py-24">
         <div className="text-center mb-16">
-          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>Built for trust</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>
+            Built for trust
+          </h2>
           <p className="text-muted-foreground max-w-lg mx-auto">
             Security and transparency at every step.
           </p>
@@ -193,7 +237,14 @@ export default function LandingPage() {
                 <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-6">
                   <point.icon className="w-7 h-7" />
                 </div>
-                <h3 className={cn("text-xl font-semibold mb-3", malinton.className)}>{point.title}</h3>
+                <h3
+                  className={cn(
+                    "text-xl font-semibold mb-3",
+                    malinton.className,
+                  )}
+                >
+                  {point.title}
+                </h3>
                 <p className="text-muted-foreground">{point.description}</p>
               </CardContent>
             </Card>
@@ -204,7 +255,9 @@ export default function LandingPage() {
       {/* CTA Section */}
       <SectionWrapper className="py-24">
         <Card variant="glass" className="p-12 text-center">
-          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>Ready to get started?</h2>
+          <h2 className={cn("text-3xl font-bold mb-4", malinton.className)}>
+            Ready to get started?
+          </h2>
           <p className="text-muted-foreground mb-8 max-w-md mx-auto">
             Connect your wallet and experience the future of Stellar payments.
           </p>

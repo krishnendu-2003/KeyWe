@@ -4,7 +4,15 @@ import fs from "fs";
 import path from "path";
 
 const router = Router();
-const contractService = new ContractService();
+let contractService: ContractService | null = null;
+
+// Lazy-load contract service only when needed
+function getContractService() {
+  if (!contractService) {
+    contractService = new ContractService();
+  }
+  return contractService;
+}
 
 router.post("/upload", async (req, res) => {
   try {
@@ -14,7 +22,7 @@ router.post("/upload", async (req, res) => {
       return res.status(404).json({ error: "WASM file not found" });
     }
 
-    const result = await contractService.uploadWasm(wasmPath);
+    const result = await getContractService().uploadWasm(wasmPath);
     res.json(result);
   } catch (error: any) {
     console.error("Upload error:", error);
@@ -30,7 +38,7 @@ router.post("/deploy", async (req, res) => {
       return res.status(400).json({ error: "Missing wasmHash" });
     }
 
-    const result = await contractService.deployContract(wasmHash);
+    const result = await getContractService().deployContract(wasmHash);
     res.json(result);
   } catch (error: any) {
     console.error("Deploy error:", error);
@@ -48,7 +56,7 @@ router.post("/invoke", async (req, res) => {
       });
     }
 
-    const result = await contractService.invokeContract({
+    const result = await getContractService().invokeContract({
       contractId,
       functionName,
       args,
