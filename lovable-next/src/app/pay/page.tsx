@@ -257,21 +257,46 @@ export default function PayPage() {
       const accountData: any = await accountRes.json();
       const account = new StellarSdk.Account(publicKey, String(accountData.sequence));
 
+      // 1b) Check destination status. If destination is not funded yet,
+      // we must use createAccount (not payment) on Stellar.
+      const destinationRes = await fetch(
+        `${horizonUrl.replace(/\/$/, "")}/accounts/${detectedAddress}`,
+      );
+      const destinationExists = destinationRes.ok;
+      if (!destinationExists && destinationRes.status !== 404) {
+        throw new Error("Failed to validate destination account on Horizon");
+      }
+
       // 2) Build payment tx (XLM)
       const fee = String(StellarSdk.BASE_FEE || 100);
-      const tx = new StellarSdk.TransactionBuilder(account, {
+      const txBuilder = new StellarSdk.TransactionBuilder(account, {
         fee,
         networkPassphrase,
-      })
-        .addOperation(
+      });
+
+      if (destinationExists) {
+        txBuilder.addOperation(
           StellarSdk.Operation.payment({
             destination: detectedAddress,
             asset: StellarSdk.Asset.native(),
             amount: amt.toFixed(7), // Horizon requires string decimal; Stellar uses 7 decimals
           }),
-        )
-        .setTimeout(180)
-        .build();
+        );
+      } else {
+        if (amt < 1) {
+          throw new Error(
+            "Destination wallet is not activated. Send at least 1 XLM to activate it.",
+          );
+        }
+        txBuilder.addOperation(
+          StellarSdk.Operation.createAccount({
+            destination: detectedAddress,
+            startingBalance: amt.toFixed(7),
+          }),
+        );
+      }
+
+      const tx = txBuilder.setTimeout(180).build();
 
       // 3) Sign via Freighter
       const signedXdr = await signTransaction(tx.toXDR(), { networkPassphrase });
@@ -285,8 +310,12 @@ export default function PayPage() {
       });
       const submitJson: any = await submitRes.json().catch(() => ({}));
       if (!submitRes.ok) {
+        const txCode = submitJson?.extras?.result_codes?.transaction;
+        const opCode = submitJson?.extras?.result_codes?.operations?.[0];
         const msg =
-          submitJson?.extras?.result_codes?.transaction ||
+          (txCode && opCode ? `${txCode} (${opCode})` : null) ||
+          txCode ||
+          opCode ||
           submitJson?.detail ||
           "Transaction failed";
         throw new Error(msg);
