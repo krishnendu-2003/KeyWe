@@ -23,12 +23,18 @@ export interface SwapResponse {
 }
 
 export class SwapService {
-  private contractService: ContractService;
+  private contractService?: ContractService;
   private pathPaymentService: PathPaymentService;
 
   constructor() {
-    this.contractService = new ContractService();
     this.pathPaymentService = new PathPaymentService();
+  }
+
+  private getContractService(): ContractService {
+    if (!this.contractService) {
+      this.contractService = new ContractService();
+    }
+    return this.contractService;
   }
 
   async buildSwapTransaction(request: SwapRequest): Promise<SwapResponse> {
@@ -59,8 +65,8 @@ export class SwapService {
       };
     }
 
-    // Contract execution - will be implemented when contract is deployed
-    // For now, this path won't be reached since contractId check happens earlier
+    // Contract execution - initialize lazily so backend can run without SECRET_KEY
+    this.getContractService();
     throw new Error("Contract execution not yet implemented");
   }
 

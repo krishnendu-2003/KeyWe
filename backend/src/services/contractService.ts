@@ -28,7 +28,13 @@ export class ContractService {
       throw new Error("SECRET_KEY environment variable is required");
     }
 
-    this.sourceKeypair = Keypair.fromSecret(secretKey);
+    try {
+      this.sourceKeypair = Keypair.fromSecret(secretKey.trim());
+    } catch {
+      throw new Error(
+        "Invalid SECRET_KEY in backend/.env. It must be a valid Stellar secret key starting with 'S'."
+      );
+    }
   }
 
   // --------------------------------
