@@ -5,7 +5,7 @@ KeyWe
 
 ## Project description
 
-The platform already delivers real, production-ready value through a smart swap aggregator powered by path-based routing using "GET	/paths/strict-send" and "GET	/paths/strict-receive" mechanisms as been provided by the Stellar's latest ledger known as Horizon. This allows the system to automatically discover the most efficient routes across multiple DEXs and liquidity pools, ensuring optimal pricing and minimal slippage. Users can make QR code–based payments with UPI-like simplicity, securely connect via the Freighter wallet, and view a fully on-chain, auditable transaction history for complete transparency.
+The platform already delivers real, production-ready value through a smart swap aggregator powered by path-based routing using "GET /paths/strict-send" and "GET /paths/strict-receive" endpoints provided by Stellar Horizon. This allows the system to automatically discover the most efficient routes across multiple DEXs and liquidity pools, ensuring optimal pricing and minimal slippage. Users can make QR code-based payments with UPI-like simplicity, securely connect via the Freighter wallet, and view a fully on-chain, auditable transaction history for complete transparency.
 
 Looking ahead, the platform is evolving into a bridge between traditional finance and blockchain through upcoming Tokenized Security Deposits, where real-world deposits are converted into programmable tokens locked in smart contracts with transparent rules and automatic settlement. This RWA architecture is designed to scale beyond rentals into utilities, vehicles, education fees, and more—bringing together payments, intelligent routing, swaps, and real-world value under one vision: Where Payments Meet Programmability.
 
