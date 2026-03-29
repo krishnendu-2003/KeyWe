@@ -578,7 +578,7 @@ export default function PayPage() {
                       <h3 className="text-lg font-semibold mb-1">
                         Address Detected
                       </h3>
-                      <p className="font-mono text-muted-foreground">
+                      <p className="font-mono text-xs leading-relaxed text-muted-foreground break-all max-w-full px-2">
                         {detectedAddress}
                       </p>
                     </div>
