@@ -6,6 +6,8 @@ import {
   xdr,
   SorobanRpc,
   Operation,
+  XdrLargeInt,
+  scValToBigInt,
 } from "@stellar/stellar-sdk";
 import fs from "fs";
 import crypto from "crypto";
@@ -35,6 +37,16 @@ export class ContractService {
         "Invalid SECRET_KEY in backend/.env. It must be a valid Stellar secret key starting with 'S'."
       );
     }
+  }
+
+  private resolveContractId(contractId?: string) {
+    const resolvedContractId = contractId || process.env.CONTRACT_ID;
+    if (!resolvedContractId) {
+      throw new Error(
+        "CONTRACT_ID is not configured. Deploy the contract first or pass a contractId."
+      );
+    }
+    return resolvedContractId;
   }
 
   // --------------------------------
@@ -188,6 +200,36 @@ export class ContractService {
     return {
       transactionHash: send.hash,
       result: result.returnValue,
+    };
+  }
+
+  async previewSwap({
+    amount,
+    hops,
+    contractId,
+  }: {
+    amount: string;
+    hops: number;
+    contractId?: string;
+  }) {
+    if (hops <= 0) {
+      throw new Error("hops must be greater than 0");
+    }
+
+    const resolvedContractId = this.resolveContractId(contractId);
+    const result = await this.invokeContract({
+      contractId: resolvedContractId,
+      functionName: "preview_swap",
+      args: [
+        new XdrLargeInt("i128", amount).toScVal(),
+        xdr.ScVal.scvU32(hops),
+      ],
+    });
+
+    return {
+      contractId: resolvedContractId,
+      transactionHash: result.transactionHash,
+      estimatedAmountOut: result.result ? scValToBigInt(result.result).toString() : null,
     };
   }
 }

@@ -1,73 +1,70 @@
 KeyWe
 =====
 
-**KeyWe** is a **swap aggregator for Stellar**: a dApp that finds efficient swap routes (multi-hop where needed), shows users the quote/route preview, and executes swaps via Stellar primitives (and an optional Soroban contract layer).
+**KeyWe** is a Stellar swap and payments app with a Next.js frontend, an Express backend, and a Soroban smart contract workspace.
 
 ## Project description
 
-The platform already delivers real, production-ready value through a smart swap aggregator powered by path-based routing using "GET /paths/strict-send" and "GET /paths/strict-receive" endpoints provided by Stellar Horizon. This allows the system to automatically discover the most efficient routes across multiple DEXs and liquidity pools, ensuring optimal pricing and minimal slippage. Users can make QR code-based payments with UPI-like simplicity, securely connect via the Freighter wallet, and view a fully on-chain, auditable transaction history for complete transparency.
+KeyWe combines wallet-based Stellar payments, quote-driven swap routing, and a Soroban contract integration layer. Users connect Freighter, fetch swap quotes from the backend, sign transactions locally, and can now see a contract-backed preview directly in the active frontend.
 
-Looking ahead, the platform is evolving into a bridge between traditional finance and blockchain through upcoming Tokenized Security Deposits, where real-world deposits are converted into programmable tokens locked in smart contracts with transparent rules and automatic settlement. This RWA architecture is designed to scale beyond rentals into utilities, vehicles, education fees, and more—bringing together payments, intelligent routing, swaps, and real-world value under one vision: Where Payments Meet Programmability.
+## Smart contract integration files
 
-## Contract address
+These are the main files where the frontend-to-contract integration is implemented:
 
-Since the contract-execution path is not finalized or audited yet, we intentionally didn’t deploy it for the demo. Native path payments already give us real on-chain execution, real liquidity routing, and wallet-level signing — without introducing unaudited logic.
+- `lovable-next/src/app/swap/page.tsx`
+- `lovable-next/src/lib/contract.ts`
+- `lovable-next/src/lib/api.ts`
+- `lovable-next/src/lib/walletContext.tsx`
+- `backend/src/routes/contract.ts`
+- `backend/src/services/contractService.ts`
+- `contract/src/lib.rs`
 
-## Problem statement (what we’re solving and how)
+## Current contract flow
 
-On Stellar, liquidity can be fragmented across orderbooks, AMMs, and multi-hop path possibilities. For users, that typically means:
-- hard-to-predict outcomes (slippage/price impact)
-- extra steps to find the best route
-- higher risk of failed or suboptimal swaps
+- The active frontend app is `lovable-next/`.
+- Swap execution still uses wallet-signed Stellar path payment transactions.
+- Soroban integration is now wired into the frontend through a contract-backed preview flow.
+- To activate the contract preview in the UI, set `CONTRACT_ID`, `SOROBAN_RPC_URL`, and `SECRET_KEY` in the backend after deploying the contract from `contract/src/lib.rs`.
 
-**KeyWe solves this** by running an off-chain routing + simulation layer that:
-- builds possible swap paths between assets
-- simulates expected output and ranks routes
-- returns a route payload the UI can present (and later execute)
+## Repository layout
 
-## Features
-
-- **Route discovery & quoting**: Find and rank potential routes for a swap.
-- **Multi-hop routing**: Support swaps that require intermediate assets (e.g., `USDC → XLM → EURC`).
-- **Swap execution flow**: Execute swaps through backend orchestration (with hooks for Soroban execution).
-- **Wallet-ready UI**: Freighter integration in the dApp UI (repo includes Stellar SDK usage).
-- **Contract management endpoints**: Upload/deploy/invoke helpers for the Soroban WASM lifecycle.
-
-
-### Repository layout
-
-```
+```text
 KeyWe/
-├── backend/          # Express + TypeScript API
-├── contract/         # Soroban contract (Rust → WASM)
-└── lovable-next/     # Frontend
+|-- backend/        # Express + TypeScript API
+|-- contract/       # Soroban contract (Rust -> WASM)
+|-- lovable-next/   # Active Next.js frontend
+|-- mobile/         # Mobile experiments
+`-- lovable/        # Earlier frontend iteration
 ```
 
-Quick run:
+## Local run
+
+Backend:
 
 ```bash
+cd backend
 npm install
 npm run dev
 ```
 
-This starts:
-- **Backend**: `http://localhost:3001`
-- **Frontend**: `http://localhost:3000`
+Frontend:
 
-## Future scope and plans
+```bash
+cd lovable-next
+npm install
+npm run dev
+```
 
-- **Deploy Soroban contract** to testnet/mainnet and publish contract IDs.
-- **Real AMM/pool integrations** + more robust hybrid routing across sources.
-- **Route splitting** (when supported) for better price execution on larger swaps.
-- **Caching & performance** improvements (orderbook snapshots, quote memoization).
-- **Safety hardening**: slippage guards, better validation, failure retries, audit readiness.
-- **Better UX**: richer route visualizations, execution tracking, improved history & analytics.
+Default local URLs:
 
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3001`
 
 ## Screenshots
+
 <img src="docs/images/pic1.png" alt="Swap page" width="800" />
 <img src="docs/images/pic2.png" alt="Swap page" width="800" />
-<img src="docs/images/pic3.png " alt="Swap page" width="800" />
+<img src="docs/images/pic3.png" alt="Swap page" width="800" />
 <img src="docs/images/pic4.png" alt="Swap page" width="800" />
 <img src="docs/images/pic5.png" alt="Swap page" width="800" />
 <img src="docs/images/pic6.png" alt="Swap page" width="800" />

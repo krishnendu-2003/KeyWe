@@ -8,6 +8,26 @@ pub struct SwapAggregator;
 
 #[contractimpl]
 impl SwapAggregator {
+    /// Preview the contract's fee-adjusted output for a swap route.
+    ///
+    /// This method is intentionally side-effect free so the frontend can
+    /// integrate with the contract without requiring user authorization.
+    pub fn preview_swap(_env: Env, amount: I128, hops: u32) -> I128 {
+        if hops == 0 {
+            panic!("Route cannot be empty");
+        }
+
+        let mut current_amount = amount;
+        let mut remaining_hops = hops;
+
+        while remaining_hops > 0 {
+            current_amount = current_amount * I128::from(99) / I128::from(100);
+            remaining_hops -= 1;
+        }
+
+        current_amount
+    }
+
     /// Execute a swap through the aggregator
     /// 
     /// # Arguments

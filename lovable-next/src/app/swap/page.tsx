@@ -23,7 +23,14 @@ import {
   buildSwapTransaction,
   getQuote,
   submitSwapTransaction,
+  type QuoteResponse,
+  type SwapRouteHop,
 } from "@/lib/api";
+import {
+  getContractStatus,
+  previewSwapWithContract,
+  type ContractStatusResponse,
+} from "@/lib/contract";
 import { signTransaction } from "@stellar/freighter-api";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { toast } from "@/hooks/use-toast";
@@ -50,12 +57,14 @@ type SwapState =
   | "success"
   | "error";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function SwapPage() {
   const {
     isConnected,
     publicKey,
-    connect,
-    disconnect,
     isFreighterInstalled,
     networkDetails,
   } = useWallet();
@@ -74,9 +83,15 @@ export default function SwapPage() {
   const toSelectorRef = useRef<HTMLDivElement>(null);
   const [balances, setBalances] = useState<AssetBalance[]>([]);
   const [loadingBalances, setLoadingBalances] = useState(false);
-  const [quote, setQuote] = useState<any>(null);
+  const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contractStatus, setContractStatus] =
+    useState<ContractStatusResponse | null>(null);
+  const [contractPreview, setContractPreview] = useState<string | null>(null);
+  const [contractPreviewTxHash, setContractPreviewTxHash] = useState<string | null>(null);
+  const [contractPreviewLoading, setContractPreviewLoading] = useState(false);
+  const [contractPreviewError, setContractPreviewError] = useState<string | null>(null);
 
   const handleSwapDirection = () => {
     const temp = fromAsset;
@@ -109,6 +124,37 @@ export default function SwapPage() {
     return out < 0.01 ? out.toFixed(7) : out.toFixed(2);
   }, [quote, loadingQuote]);
 
+  const contractEstimatedOutput = useMemo(() => {
+    if (contractPreviewLoading) return "â€¦";
+    if (!contractPreview) return "Unavailable";
+    const out = Number.parseFloat(contractPreview) / 10_000_000;
+    if (!Number.isFinite(out)) return "Unavailable";
+    return out < 0.01 ? out.toFixed(7) : out.toFixed(2);
+  }, [contractPreview, contractPreviewLoading]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getContractStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setContractStatus(status);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setContractStatus(null);
+          setContractPreviewError(
+            getErrorMessage(e, "Failed to load contract integration status"),
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Fetch balances when connected.
   useEffect(() => {
     if (!isConnected || !publicKey) {
@@ -119,7 +165,9 @@ export default function SwapPage() {
     setError(null);
     fetchAccountBalances(publicKey, { horizonUrl: networkDetails?.networkUrl })
       .then(setBalances)
-      .catch((e: any) => setError(e?.message || "Failed to fetch balances"))
+      .catch((e: unknown) =>
+        setError(getErrorMessage(e, "Failed to fetch balances")),
+      )
       .finally(() => setLoadingBalances(false));
   }, [isConnected, publicKey, networkDetails?.networkUrl]);
 
@@ -140,10 +188,10 @@ export default function SwapPage() {
       });
       setQuote(res);
       setSwapState("ready");
-    } catch (e: any) {
+    } catch (e: unknown) {
       setQuote(null);
       setSwapState("idle");
-      setError(e?.message || "Failed to get quote");
+      setError(getErrorMessage(e, "Failed to get quote"));
     } finally {
       setLoadingQuote(false);
     }
@@ -162,7 +210,57 @@ export default function SwapPage() {
     setQuote(null);
     setError(null);
     if (amount) setSwapState("idle");
-  }, [fromAsset.code, toAsset.code]);
+  }, [amount, fromAsset.code, toAsset.code]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!contractStatus?.configured || !quote?.amountIn || !quote?.route?.length) {
+      setContractPreview(null);
+      setContractPreviewTxHash(null);
+      if (contractStatus?.configured !== false) {
+        setContractPreviewError(null);
+      }
+      setContractPreviewLoading(false);
+      return;
+    }
+
+    setContractPreviewLoading(true);
+    setContractPreviewError(null);
+
+    previewSwapWithContract({
+      amount: quote.amountIn,
+      hops: quote.route.length,
+      contractId: contractStatus.contractId || undefined,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setContractPreview(result.estimatedAmountOut);
+        setContractPreviewTxHash(result.transactionHash);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setContractPreview(null);
+        setContractPreviewTxHash(null);
+        setContractPreviewError(
+          getErrorMessage(e, "Failed to load contract-backed preview"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setContractPreviewLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    contractStatus?.configured,
+    contractStatus?.contractId,
+    quote?.amountIn,
+    quote?.route?.length,
+  ]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -262,9 +360,9 @@ export default function SwapPage() {
       setAmount("");
       setQuote(null);
       setTimeout(() => setSwapState("idle"), 2500);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setSwapState("error");
-      setError(e?.message || "Swap failed");
+      setError(getErrorMessage(e, "Swap failed"));
     }
   };
 
@@ -567,7 +665,7 @@ export default function SwapPage() {
                     <span>
                       {quote?.route?.length
                         ? quote.route
-                            .map((hop: any) => hop?.fromAsset)
+                            .map((hop: SwapRouteHop) => hop.fromAsset)
                             .concat([
                               quote.route[quote.route.length - 1]?.toAsset,
                             ])
@@ -580,6 +678,26 @@ export default function SwapPage() {
                     <span className="text-muted-foreground">Network Fee</span>
                     <span>~0.00001 XLM</span>
                   </div>
+                  <div className="flex items-center justify-between text-sm gap-4">
+                    <span className="text-muted-foreground">
+                      Soroban Contract Preview
+                    </span>
+                    <span className="text-right">
+                      {!contractStatus
+                        ? "Checkingâ€¦"
+                        : !contractStatus.configured
+                          ? "Not configured"
+                          : `${contractEstimatedOutput} ${toAsset.code}`}
+                    </span>
+                  </div>
+                  {contractStatus?.configured && contractPreviewTxHash && (
+                    <div className="flex items-center justify-between text-sm gap-4">
+                      <span className="text-muted-foreground">Preview Tx</span>
+                      <span className="truncate max-w-[12rem] text-right">
+                        {contractPreviewTxHash}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Slippage</span>
                     <span>{slippage}%</span>
@@ -591,6 +709,20 @@ export default function SwapPage() {
                       </span>
                       <span>{quote.priceImpact.toFixed(2)}%</span>
                     </div>
+                  )}
+                  {contractStatus?.configured && (
+                    <p className="text-xs text-muted-foreground">
+                      Contract integration is active via{" "}
+                      <code className="font-mono">
+                        {contractStatus.contractId || "CONTRACT_ID"}
+                      </code>
+                      .
+                    </p>
+                  )}
+                  {contractPreviewError && (
+                    <p className="text-xs text-muted-foreground">
+                      {contractPreviewError}
+                    </p>
                   )}
                 </div>
               )}

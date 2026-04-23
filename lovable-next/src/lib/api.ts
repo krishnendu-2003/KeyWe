@@ -14,8 +14,27 @@ export interface QuoteRequest {
   userPublicKey?: string;
 }
 
+export interface SwapRouteHop {
+  type: string;
+  fromAsset: string;
+  toAsset: string;
+  amountIn: string;
+  amountOut: string;
+}
+
+export interface QuoteResponse {
+  fromAsset: string;
+  toAsset: string;
+  amountIn: string;
+  amountOut: string;
+  route: SwapRouteHop[];
+  priceImpact: number;
+  slippage: number;
+  estimatedGas: string;
+}
+
 export interface SwapRequest {
-  route: any[];
+  route: SwapRouteHop[];
   userPublicKey: string;
   amountIn: string;
   amountOut: string;
@@ -26,14 +45,14 @@ export interface SwapRequest {
 
 async function parseError(response: Response, fallback: string) {
   try {
-    const error = await response.json();
+    const error = (await response.json()) as { error?: string };
     return error?.error || fallback;
   } catch {
     return `HTTP ${response.status}: ${response.statusText || fallback}`;
   }
 }
 
-export async function getQuote(request: QuoteRequest) {
+export async function getQuote(request: QuoteRequest): Promise<QuoteResponse> {
   const response = await fetch(`${API_URL}/quote`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -47,7 +66,18 @@ export async function getQuote(request: QuoteRequest) {
   return response.json();
 }
 
-export async function buildSwapTransaction(request: SwapRequest) {
+export interface BuildSwapTransactionResponse {
+  transactionXdr?: string;
+  transactionHash?: string;
+  status: string;
+  amountOut: string;
+  networkPassphrase?: string;
+  needsSignature?: boolean;
+}
+
+export async function buildSwapTransaction(
+  request: SwapRequest,
+): Promise<BuildSwapTransactionResponse> {
   const response = await fetch(`${API_URL}/swap/build`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -64,7 +94,7 @@ export async function buildSwapTransaction(request: SwapRequest) {
 export async function submitSwapTransaction(
   signedTransactionXdr: string,
   networkPassphrase: string,
-) {
+): Promise<{ transactionHash?: string; status: string; amountOut: string }> {
   const response = await fetch(`${API_URL}/swap/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
